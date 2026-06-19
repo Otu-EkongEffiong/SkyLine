@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 35 33% 97%;            /* Soft Sand #F8F5F0 */
+    --foreground: 215 28% 17%;           /* Dark Gray #1F2937 */
+    --card: 0 0% 100%;
+    --card-foreground: 215 28% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 205 90% 60%;              /* Sky Blue #3FA9F5 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 173 82% 40%;            /* Teal #14B8A6 */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 35 20% 94%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 26 100% 55%;               /* Sunset Orange #FF7A18 */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Enhanced high contrast dark mode for WCAG AAA compliance */
+    --background: 210 15% 10%;        /* Deep charcoal, not pure black */
+    --foreground: 210 10% 98%;        /* Near white for text */
+    --card: 210 13% 16%;              /* Subtle elevation from background */
+    --card-foreground: 210 10% 98%;   /* High contrast text */
+    --popover: 210 13% 16%;
+    --popover-foreground: 210 10% 98%;
+    --primary: 200 100% 60%;          /* Bright sky blue */
+    --primary-foreground: 210 15% 10%;
+    --secondary: 170 100% 50%;        /* Bright teal */
+    --secondary-foreground: 210 15% 10%;
+    --muted: 210 12% 35%;             /* Medium gray for secondary text */
+    --muted-foreground: 210 8% 85%;   /* Light gray - highly readable */
+    --accent: 30 100% 55%;            /* Bright orange for accents */
+    --accent-foreground: 210 15% 10%;
+    --destructive: 0 100% 60%;        /* Bright red */
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 12% 28%;            /* Visible borders with contrast */
+    --input: 210 13% 20%;             /* Lighter input backgrounds */
+    --ring: 200 100% 60%;
+    --chart-1: 200 100% 60%;
+    --chart-2: 170 100% 50%;
+    --chart-3: 80 100% 60%;
+    --chart-4: 270 100% 65%;
+    --chart-5: 0 100% 60%;
+    --sidebar-background: 210 13% 14%;
+    --sidebar-foreground: 210 10% 98%;
+    --sidebar-primary: 200 100% 60%;
+    --sidebar-primary-foreground: 210 15% 10%;
+    --sidebar-accent: 170 100% 50%;
+    --sidebar-accent-foreground: 210 15% 10%;
+    --sidebar-border: 210 12% 28%;
+    --sidebar-ring: 200 100% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  button, a {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ── Minimum 44×44 touch targets for all interactive elements ── */
+button,
+[role="button"],
+a,
+input[type="checkbox"],
+input[type="radio"],
+select {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Inline links & icon-only buttons can be smaller visually but still have a hit area */
+a.inline-link,
+.icon-btn {
+  position: relative;
+}
+a.inline-link::after,
+.icon-btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+/* Touch feedback for interactive cards */
+.touch-card {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+.touch-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+@media (hover: hover) {
+  .touch-card:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  }
+}
+
+/* Ripple animation */
+@keyframes ripple {
+  0%   { transform: scale(1);  opacity: 0.5; }
+  100% { transform: scale(18); opacity: 0; }
+}
+.animate-ripple {
+  animation: ripple 0.6s ease-out forwards;
+}
+
+/* Safe area utilities */
+.pb-safe {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+.bottom-nav-height {
+  height: calc(4rem + env(safe-area-inset-bottom));
+}
