@@ -36,21 +36,12 @@ export default function Layout({ children, currentPageName }) {
     setShowSplash(false);
   };
 
-  // Terms gate: redirect to AcceptTerms if user hasn't accepted yet
+  // Terms gate: redirect once if user hasn't accepted yet
   React.useEffect(() => {
-    if (currentPageName === 'AcceptTerms') return;
-    (async () => {
-      try {
-        if (!isAuthenticated) {
-          navigate('/AcceptTerms');
-        }
-      } catch {
-        if (!isAuthenticated) {
-          navigate('/AcceptTerms');
-        }
-      }
-    })();
-  }, [currentPageName, isAuthenticated]);
+    if (currentPageName === 'AcceptTerms' || currentPageName === 'Login' || currentPageName === 'Register') return;
+    const accepted = localStorage.getItem('skyline_terms_accepted') === 'true';
+    if (!accepted) navigate('/AcceptTerms');
+  }, [currentPageName, navigate]);
 
   // Auto-apply dark class based on system preference
   React.useEffect(() => {

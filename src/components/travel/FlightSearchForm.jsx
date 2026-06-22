@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/popover";
 import { format } from 'date-fns';
 import { useTranslation } from '@/components/translations';
-import { searchAirports } from '@/components/api/amadeusClient';
+import { searchAirports } from '@/components/api/flightClient';
 
 // ─────────────────────────────────────────────────────────
 // Live Amadeus airport autocomplete input

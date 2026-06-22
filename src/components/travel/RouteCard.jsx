@@ -69,7 +69,7 @@ function buildAffiliateUrl(route, affiliateBaseUrl) {
   return `${base}/${origin}-airport/${destination}-airport`;
 }
 
-export default function RouteCard({ route, index, affiliateBaseUrl }) {
+export default function RouteCard({ route, index, affiliateBaseUrl, onSelect }) {
   const hasPassportContext = route.visaScore !== undefined;
   const accessibility = hasPassportContext
     ? accessibilityLabel(route.visaScore, route.isRecommended)
@@ -251,12 +251,16 @@ export default function RouteCard({ route, index, affiliateBaseUrl }) {
                 : "bg-sky-500 hover:bg-sky-600"
             )}
             onClick={() => {
+              if (onSelect) {
+                onSelect(route);
+                return;
+              }
               const url = buildAffiliateUrl(route, affiliateBaseUrl);
               window.open(url, '_blank', 'noopener,noreferrer');
             }}
           >
             <Ticket className="w-4 h-4 mr-2" />
-            Book Now
+            {onSelect ? 'View Route' : 'Book Now'}
           </Button>
         </motion.div>
       </div>

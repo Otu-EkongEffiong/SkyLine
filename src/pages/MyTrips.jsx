@@ -13,7 +13,8 @@ import FlightStatusTracker from '@/components/travel/FlightStatusTracker';
 import { motion } from 'framer-motion';
 import { useTranslation } from '@/components/translations';
 import { format, parseISO, isAfter, isBefore } from 'date-fns';
-import CheapFlightRecommendations from '@/components/travel/CheapFlightRecommendations';
+import { loadTrips } from '@/lib/tripStorage';
+import { loadUserProfile } from '@/lib/profileStorage';
 
 export default function MyTrips() {
   const { t } = useTranslation();
@@ -25,30 +26,15 @@ export default function MyTrips() {
     await queryClient.invalidateQueries({ queryKey: ['trips'] });
   };
 
-  const { data: user } = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: () => null,
-  });
-
   const { data: trips = [], isLoading } = useQuery({
-    queryKey: ['trips', user?.email],
-    queryFn: () => [],
-    enabled: !!user,
+    queryKey: ['trips'],
+    queryFn: () => loadTrips(),
   });
 
-  const { data: userProfiles = [] } = useQuery({
-    queryKey: ['userProfile', user?.email],
-    queryFn: () => [],
-    enabled: !!user,
-  });
-
-  const activeProfile = (() => {
-    const up = userProfiles[0];
-    if (!up) return null;
-    const profiles = up.travel_profiles || [];
-    return profiles.find(p => p.id === up.active_profile_id) || profiles[0] || null;
-  })();
-
+  const userProfile = loadUserProfile();
+  const activeProfile = userProfile?.travel_profiles?.find(
+    (p) => p.id === userProfile.active_profile_id
+  ) || userProfile?.travel_profiles?.[0] || null;
   const homeAirport = activeProfile?.home_airport || null;
 
   // Categorize trips by status and date
@@ -91,7 +77,7 @@ export default function MyTrips() {
                   )}
                 </div>
                 <CardTitle className="text-lg text-slate-900 dark:text-slate-100">
-                   {trip.origin.city} → {trip.destination.city}
+                   {(trip.origin?.city || trip.origin?.code || '?')} → {(trip.destination?.city || trip.destination?.code || '?')}
                  </CardTitle>
                 </div>
                 <ChevronRight className="w-5 h-5 text-slate-400 dark:text-slate-500" />

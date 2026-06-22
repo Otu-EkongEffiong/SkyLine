@@ -14,7 +14,9 @@ import {
   MessageSquare,
   Bug,
   DollarSign,
-  Moon
+  Moon,
+  Map,
+  Globe2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import BugReportModal from '@/components/BugReportModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Trash2, Info } from 'lucide-react';
-import { VisaMonitoringInfo } from '@/components/travel/VisaChangeMonitor';
+import { useAuth } from '@/lib/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$', flag: '🇺🇸' },
@@ -47,6 +50,8 @@ const CURRENCIES = [
 
 export default function Settings() {
   const { t } = useTranslation();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [currency, setCurrency] = React.useState(() => localStorage.getItem('preferredCurrency') || 'USD');
   const [bugReportOpen, setBugReportOpen] = React.useState(false);
   const [infoOpen, setInfoOpen] = React.useState(false);
@@ -77,13 +82,14 @@ export default function Settings() {
     window.location.reload(); // Reload to apply currency changes across the app
   };
 
-  const { data: user } = useQuery({
+  const { data: currentUser } = useQuery({
     queryKey: ['currentUser'],
     queryFn: () => null,
   });
 
   const handleLogout = () => {
-    null;
+    logout();
+    navigate(createPageUrl('Login'));
   };
 
   const SettingsSection = ({ title, children }) => (
@@ -208,6 +214,21 @@ export default function Settings() {
             </SettingsItem>
           </SettingsSection>
 
+          {/* Tools */}
+          <SettingsSection title="Travel tools">
+            <Link to={createPageUrl('LiveMap')}>
+              <SettingsItem icon={Map} label="Live flight map" />
+            </Link>
+            <Separator />
+            <Link to={createPageUrl('AdminVisaRules')}>
+              <SettingsItem icon={Globe2} label="Visa rules admin" />
+            </Link>
+            <Separator />
+            <Link to={createPageUrl('AdminAirports')}>
+              <SettingsItem icon={Globe} label="Airport database admin" />
+            </Link>
+          </SettingsSection>
+
           {/* Support */}
           <SettingsSection title={t('supportHelp')}>
             <Link to={createPageUrl('HelpCenter')}>
@@ -256,6 +277,23 @@ export default function Settings() {
 
           {/* Account */}
           <SettingsSection title={t('account')}>
+            {!user ? (
+              <>
+                <Link to={createPageUrl('Login')}>
+                  <SettingsItem icon={User} label="Sign in" />
+                </Link>
+                <Separator />
+                <Link to={createPageUrl('Register')}>
+                  <SettingsItem icon={User} label="Create account" />
+                </Link>
+                <Separator />
+              </>
+            ) : (
+              <>
+                <SettingsItem icon={User} label={user.email} showChevron={false} />
+                <Separator />
+              </>
+            )}
             <SettingsItem 
               icon={LogOut} 
               label={t('signOut')} 

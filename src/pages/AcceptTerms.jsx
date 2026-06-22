@@ -37,7 +37,7 @@ export default function AcceptTerms() {
 
   const handleAccept = async () => {
     setIsLoading(true);
-    const now = new Date().toISOString();
+    localStorage.setItem('skyline_terms_accepted', 'true');
     navigate(createPageUrl('Home'));
   };
 

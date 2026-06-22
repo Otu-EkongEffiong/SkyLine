@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import FlightStatusTracker from '@/components/travel/FlightStatusTracker';
 import BottomNav from '@/components/BottomNav';
+import { getTripById, saveTrip, loadTrips } from '@/lib/tripStorage';
 
 export default function TripDetails() {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ export default function TripDetails() {
   
   const { data: trip, isLoading } = useQuery({
     queryKey: ['trip', tripId],
-    queryFn: () => JSON.parse(localStorage.getItem('skypath_trips') || '[]').find(t => t.id === tripId) || null,
+    queryFn: () => getTripById(tripId),
     enabled: !!tripId,
   });
 
