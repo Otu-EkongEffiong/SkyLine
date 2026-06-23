@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
+
 export default function SplashScreen({ isExiting = false, onExitComplete = () => {} }) {
   const logoVariants = {
     enter: {
