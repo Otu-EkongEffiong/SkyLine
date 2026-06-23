@@ -1,13 +1,3 @@
-// netlify/functions/airports-search.js
-//
-// GET /.netlify/functions/airports-search?q=<query>
-//
-// Searches the `airports` table in Supabase, which is populated once
-// from the OurAirports dataset (https://ourairports.com/data/) via the
-// admin import screen (see scripts/import-ourairports.js). This keeps
-// airport lookup free, instant, and offline-friendly — no external API
-// call needed for typeahead search.
-
 const { ok, badRequest, serverError, methodNotAllowed } = require('./_lib/http');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const { searchSampleAirports } = require('./_lib/sampleAirports');
@@ -57,11 +47,7 @@ exports.handler = async (event) => {
       return ok({ airports: data.map(toClientShape), source: 'supabase' });
     }
 
-    // Table is empty or this query matched nothing in Supabase — fall
-    // back to a small bundled sample list so search/visa flows are
-    // still testable before the full OurAirports import has run.
-    // `source: 'fallback'` lets the frontend (or you, in devtools) tell
-    // the difference between "real data" and "demo data".
+    //fallback for failed supabase airports
     const fallback = searchSampleAirports(query).map(toClientShape);
     return ok({ airports: fallback, source: 'fallback' });
   } catch (err) {
