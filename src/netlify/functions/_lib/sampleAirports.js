@@ -1,11 +1,3 @@
-// netlify/functions/_lib/sampleAirports.js
-//
-// A tiny, hand-picked airport list used ONLY as a fallback when the
-// Supabase `airports` table is empty (e.g. you haven't run
-// `node scripts/import-ourairports.js` yet). This lets you test
-// search, route scoring, and visa logic end-to-end immediately,
-// without waiting on the ~8,000-row OurAirports import.
-//
 // Field names match the real `airports` table exactly
 // (iata_code / icao_code / name / city / country / latitude / longitude)
 // so the mapping logic in airports-search.js doesn't need a special case.
