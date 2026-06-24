@@ -4,7 +4,10 @@ const { searchSampleAirports } = require('./_lib/sampleAirports');
 
 function toClientShape(row) {
   return {
-    code: row.iata_code,
+    // Prefer IATA (what Duffel and most frontends expect), fall back to
+    // ICAO so small airports without an IATA code still render something
+    // usable instead of `null` in the picker.
+    code: row.iata_code || row.icao_code || '',
     icao: row.icao_code,
     name: row.name,
     city: row.city,
@@ -24,8 +27,6 @@ exports.handler = async (event) => {
   try {
     const supabase = getSupabaseAdmin();
 
-    // Match against IATA code, ICAO code, city, or airport name.
-    // `ilike` performs a case-insensitive partial match.
     const { data, error } = await supabase
       .from('airports')
       .select('iata_code, icao_code, name, city, country, latitude, longitude, type')
@@ -37,17 +38,28 @@ exports.handler = async (event) => {
           `name.ilike.%${query}%`,
         ].join(',')
       )
-      .not('iata_code', 'is', null)
       .order('city', { ascending: true })
       .limit(15);
 
     if (error) throw error;
 
-    if (data && data.length > 0) {
-      return ok({ airports: data.map(toClientShape), source: 'supabase' });
+    // Prefer rows that actually have a bookable IATA code (Duffel and
+    // most airlines search by IATA), but don't throw ICAO-only rows
+    // away entirely — surface them too, sorted after IATA matches, so
+    // the user still sees *something* for small airports.
+    const withIata = (data || []).filter((row) => row.iata_code);
+    const icaoOnly = (data || []).filter((row) => !row.iata_code);
+    const combined = [...withIata, ...icaoOnly];
+
+    if (combined.length > 0) {
+      return ok({ airports: combined.map(toClientShape), source: 'supabase' });
     }
 
-    //fallback for failed supabase airports
+    // Table is empty or this query matched nothing in Supabase — fall
+    // back to a small bundled sample list so search/visa flows are
+    // still testable before the full OurAirports import has run.
+    // `source: 'fallback'` lets the frontend (or you, in devtools) tell
+    // the difference between "real data" and "demo data".
     const fallback = searchSampleAirports(query).map(toClientShape);
     return ok({ airports: fallback, source: 'fallback' });
   } catch (err) {
