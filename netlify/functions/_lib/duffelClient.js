@@ -1,9 +1,5 @@
-// netlify/functions/_lib/duffelClient.js
 // Thin wrapper around the Duffel REST API.
 // Docs: https://duffel.com/docs/api/overview/welcome
-//
-// All calls happen server-side only — the Duffel access token must never
-// reach the browser.
 
 const DUFFEL_BASE_URL = 'https://api.duffel.com';
 const DUFFEL_API_VERSION = 'v2';
@@ -41,11 +37,7 @@ async function duffelRequest(path, { method = 'GET', body } = {}) {
   return json;
 }
 
-/**
- * Create an offer request and return matching offers.
- * https://duffel.com/docs/api/offer-requests/create-offer-request
- */
-async function createOfferRequest({ origin, destination, departureDate, returnDate, passengers }) {
+export async function createOfferRequest({ origin, destination, departureDate, returnDate, passengers }) {
   const slices = [{ origin, destination, departure_date: departureDate }];
   if (returnDate) {
     slices.push({ origin: destination, destination: origin, departure_date: returnDate });
@@ -59,27 +51,17 @@ async function createOfferRequest({ origin, destination, departureDate, returnDa
     },
   };
 
-  // return_offers=true inlines the matching offers in the response.
   return duffelRequest('/air/offer_requests?return_offers=true&supplier_timeout=15000', {
     method: 'POST',
     body,
   });
 }
 
-/**
- * Re-fetch/price a single offer right before booking, to confirm the
- * price and availability haven't changed since search.
- * https://duffel.com/docs/api/offers/get-a-single-offer
- */
-async function getOffer(offerId) {
+export async function getOffer(offerId) {
   return duffelRequest(`/air/offers/${offerId}?return_available_services=false`);
 }
 
-/**
- * Create a booking (order) for a priced offer.
- * https://duffel.com/docs/api/orders/create-an-order
- */
-async function createOrder({ offerId, passengers, paymentType = 'balance' }) {
+export async function createOrder({ offerId, passengers, paymentType = 'balance' }) {
   const body = {
     data: {
       type: 'instant',
@@ -95,5 +77,3 @@ async function createOrder({ offerId, passengers, paymentType = 'balance' }) {
   };
   return duffelRequest('/air/orders', { method: 'POST', body });
 }
-
-module.exports = { createOfferRequest, getOffer, createOrder };

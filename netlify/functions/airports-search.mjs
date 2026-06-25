@@ -1,7 +1,3 @@
-// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
- 
-
-
 const { ok, badRequest, serverError, methodNotAllowed } = require('./_lib/http');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const { searchSampleAirports } = require('./_lib/sampleAirports');

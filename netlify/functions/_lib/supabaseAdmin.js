@@ -1,8 +1,8 @@
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
  
 let cachedClient = null;
  
-function getSupabaseAdmin() {
+export function getSupabaseAdmin() {
   if (cachedClient) return cachedClient;
  
   const url = process.env.SUPABASE_URL;
@@ -17,6 +17,3 @@ function getSupabaseAdmin() {
   });
   return cachedClient;
 }
- 
-export { getSupabaseAdmin };
- 
