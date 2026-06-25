@@ -1,4 +1,6 @@
-// GET /.netlify/functions/flight-status?carrier=BA&number=117&date=2026-08-01
+// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
+ 
+// GET / netlify/functions/flight-status?carrier=BA&number=117&date=2026-08-01
 //
 // Backs FlightStatusTracker.jsx / TripDetails.jsx. Uses FlightAware
 // AeroAPI for gate, terminal, delay, and operational status.

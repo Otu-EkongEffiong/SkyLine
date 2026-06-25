@@ -1,4 +1,4 @@
-// POST /.netlify/functions/payments-create-intent
+// POST / netlify/functions/payments-create-intent
 // Body: { offerId: "off_...", amount: 45000, currency: "usd" }
 //   (amount is in the smallest currency unit, e.g. cents)
 //

@@ -1,4 +1,4 @@
-// GET /.netlify/functions/aircraft-position?icao24=4ca7b6
+// GET / netlify/functions/aircraft-position?icao24=4ca7b6
 //
 // Powers the live flight-path map. OpenSky Network's REST API is free
 // for anonymous/limited use (no key required, but credentials can be

@@ -1,7 +1,10 @@
+// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
+ 
+
 /**
  * netlify/functions/flights-price.js
 //
-// POST /.netlify/functions/flights-price
+// POST / netlify/functions/flights-price
 // Body: { offerId: "off_00009htYpSCXrwQxQpe..." }
 //
 // Re-fetches a Duffel offer right before checkout to confirm price and

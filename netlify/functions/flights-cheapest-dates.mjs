@@ -1,7 +1,10 @@
+// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
+ 
+
 /**
  * netlify/functions/flights-cheapest-dates.js
 
-// GET /.netlify/functions/flights-cheapest-dates?origin=LOS&destination=LHR&from=2026-08-01&to=2026-08-31
+// GET / netlify/functions/flights-cheapest-dates?origin=LOS&destination=LHR&from=2026-08-01&to=2026-08-31
 //
 // Powers FlightCalendar.jsx's price-by-day grid. Uses Kiwi.com Tequila's
 // flexible date search since it's optimized for exactly this — scanning

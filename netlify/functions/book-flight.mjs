@@ -1,5 +1,8 @@
+// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
+ 
+
 /**
- * POST /.netlify/functions/flights-book
+ * POST / netlify/functions/flights-book
 // Body: {
 //   offerId: "off_...",
 //   passengers: [{ id, given_name, family_name, born_on, ... }],

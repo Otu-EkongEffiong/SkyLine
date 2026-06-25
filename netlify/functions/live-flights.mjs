@@ -1,4 +1,8 @@
-// GET /.netlify/functions/live-flights
+// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
+ 
+
+
+// GET / netlify/functions/live-flights
 // Optional query params (OpenSky bounding box):
 //   lamin, lomin, lamax, lomax  — decimal degrees
 //   onGround=true|false         — filter by ground status (default: airborne only)

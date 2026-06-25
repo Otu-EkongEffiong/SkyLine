@@ -1,4 +1,7 @@
-// POST /.netlify/functions/visa-check
+// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
+ 
+
+// POST / netlify/functions/visa-check
 // Body: {
 //   passportCountry: "NG",
 //   routeCountries: ["AE", "DE"],

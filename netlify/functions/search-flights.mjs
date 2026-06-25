@@ -1,7 +1,10 @@
+// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
+ 
+
 /**
  * netlify/functions/flights-search.js
 //
-// POST /.netlify/functions/flights-search
+// POST / netlify/functions/flights-search
 // Body: {
 //   origin: "LOS", destination: "LHR",
 //   departureDate: "2026-08-01", returnDate: "2026-08-15" | null,

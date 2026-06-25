@@ -17,7 +17,7 @@ export default function AdminAirports() {
   const { data: airportCount } = useQuery({
     queryKey: ['airportCount'],
     queryFn: async () => {
-      const res = await fetch('/.netlify/functions/airports-search?q=a');
+      const res = await fetch('/ netlify/functions/airports-search?q=a');
       if (!res.ok) return null;
       const data = await res.json();
       return data.airports?.length ?? null;
@@ -41,7 +41,7 @@ export default function AdminAirports() {
       // CSV file and writes tens of thousands of rows — not something
       // that should run inside a 10-second Netlify Function. This
       // button instead verifies the table is populated and reachable.
-      const res = await fetch('/.netlify/functions/airports-search?q=london');
+      const res = await fetch('/ netlify/functions/airports-search?q=london');
       const data = await res.json();
       if (res.ok && data.airports?.length > 0) {
         setResult({

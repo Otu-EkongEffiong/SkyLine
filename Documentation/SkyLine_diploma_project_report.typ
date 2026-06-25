@@ -172,7 +172,7 @@ The first version can use a controlled visa rule dataset and API sandbox environ
 - OurAirports Data: #link("https://ourairports.com/data/")
 - Supabase Documentation: #link("https://supabase.com/docs")
 - Stripe API Documentation: #link("https://docs.stripe.com/api")
-- Netlify Functions Documentation: #link("https://docs.netlify.com/build/functions/overview/")
+- Netlify Functions Documentation: #link("https://docs netlify.com/build/functions/overview/")
 - IATA Timatic: #link("https://www.iata.org/en/services/compliance/timatic/")
 - Sherpa: #link("https://www.joinsherpa.com/")
 - Passport Index: #link("https://www.passportindex.org/")
