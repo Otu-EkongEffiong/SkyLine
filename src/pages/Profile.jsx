@@ -25,7 +25,7 @@ import {
   loadUserProfile,
   saveProfile,
   deleteProfile,
-  setActiveProfileIdInDB
+  setActiveProfile
 } from '@/lib/profileStorage';
 
 function loadProfile() {
