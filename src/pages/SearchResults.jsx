@@ -40,31 +40,40 @@ export default function SearchResults() {
   const runSearch = async (searchData) => {
     setLoading(true);
     try {
-      // 1. Fetch the user's travel profile from Supabase
-      const { travel_profiles, active_profile_id } = await loadUserProfile();
-      const currentProfile = travel_profiles.find(p => String(p.id) === String(active_profile_id));
-      
-      // Save it to state so the UI badge can use it
-      if (currentProfile) {
-        setActiveProfile(currentProfile);
+      let formattedTravelerProfile = null;
+
+      // Wrap profile loading in its own safe try/catch block 
+      // so a database auth/fetch issue won't crash the flight search
+      try {
+        const profileData = await loadUserProfile();
+        if (profileData && profileData.travel_profiles) {
+          const { travel_profiles, active_profile_id } = profileData;
+          const currentProfile = travel_profiles.find(p => String(p.id) === String(active_profile_id));
+          
+          if (currentProfile) {
+            setActiveProfile(currentProfile);
+            formattedTravelerProfile = {
+              passport_country: currentProfile.passport_country,
+              visas: currentProfile.visas || []
+            };
+          }
+        }
+      } catch (profileErr) {
+        console.error("Failed to load user profile context:", profileErr);
+        // Continues execution with formattedTravelerProfile = null
       }
 
-      // 2. Manually construct the exact traveler profile object your backend expects
-      const formattedTravelerProfile = currentProfile ? {
-        passport_country: currentProfile.passport_country,
-        visas: currentProfile.visas || []
-      } : null;
-
-      // 3. Pass that formatted payload directly into searchFlights
+      // 3. Pass payload safely into searchFlights
       const offers = await searchFlights({
         origin: searchData.origin,
         destination: searchData.destination,
         departureDate: searchData.departureDate,
         returnDate: searchData.returnDate,
-        travelerProfile: formattedTravelerProfile,
+        travelerProfile: formattedTravelerProfile, 
       });
-      setRoutes(offers);
-      saveSearchResults(offers);
+      
+      setRoutes(offers || []);
+      saveSearchResults(offers || []);
 
       const fromDate = formatDate(addDays(new Date(searchData.departureDate), -15), 'yyyy-MM-dd');
       const toDate = formatDate(addDays(new Date(searchData.departureDate), 15), 'yyyy-MM-dd');
@@ -76,6 +85,7 @@ export default function SearchResults() {
       });
       setCalendarPrices(Object.keys(prices).length ? prices : null);
     } catch (err) {
+      console.error("Flight search endpoint error:", err);
       toast.error(err.message || 'Search failed');
       setRoutes([]);
     } finally {
