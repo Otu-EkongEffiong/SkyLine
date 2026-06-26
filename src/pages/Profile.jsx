@@ -21,6 +21,13 @@ import VisaAlerts from '@/components/travel/VisaAlerts';
 // ── localStorage helpers ────────────────────────────────────────────────
 const STORAGE_KEY = 'skypath_user_profile'; // key kept for backward compat
 
+import {
+  getProfiles,
+  saveProfile,
+  deleteProfile,
+  setActiveProfileIdInDB
+} from '@/lib/profileStorage';
+
 function loadProfile() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -137,15 +144,31 @@ export default function Profile() {
   const [travelProfiles, setTravelProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
   const [isSaving, setIsSaving]             = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editingProfile, setEditingProfile] = useState(null);
   const [showTravelAccess, setShowTravelAccess] = useState(false);
 
   // Hydrate local state from profile on mount / profile change
   useEffect(() => {
-    if (profile) {
-      setTravelProfiles(profile.travel_profiles || []);
-      setActiveProfileId(profile.active_profile_id || profile.travel_profiles?.[0]?.id || null);
+    async function fetchProfiles() {
+      try {
+        setLoading(true);
+        const data = await getProfiles();
+        setProfiles(data);
+        
+        // Pick active profile
+        if (data.length > 0) {
+          const active = data.find(p => p.is_active) || data[0];
+          setActiveProfileId(active.id);
+        }
+      } catch (error) {
+        toast.error('Failed to load profiles from database');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
     }
+    fetchProfiles();
   }, []);
 
   // Persist any change to localStorage and update local profile state
@@ -183,19 +206,59 @@ export default function Profile() {
     persist(updated, newActiveId);
   };
 
-  const handleUpdateProfile = (updatedProfile) => {
-    const updated = travelProfiles.map(p => p.id === updatedProfile.id ? updatedProfile : p);
-    persist(updated, activeProfileId);
+  const handleUpdateProfile = async (updatedFields) => {
+    setIsSaving(true);
+    try {
+      // Pass full payload to the storage utility
+      const saved = await saveProfile(updatedFields);
+      
+      setProfiles(prev => {
+        const exists = prev.some(p => p.id === saved.id);
+        if (exists) {
+          return prev.map(p => p.id === saved.id ? saved : p);
+        }
+        return [...prev, saved];
+      });
+
+      if (saved.is_active || profiles.length === 0) {
+        setActiveProfileId(saved.id);
+      }
+      toast.success('Profile saved to database successfully');
+    } catch (error) {
+      toast.error('Failed to save profile');
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+      setEditingProfile(null);
+    }
   };
 
-  const handleDeleteProfile = (profileId) => {
-    const updated = travelProfiles.filter(p => p.id !== profileId);
-    const newActiveId = activeProfileId === profileId ? updated[0]?.id : activeProfileId;
-    persist(updated, newActiveId || null);
+  const handleDeleteProfile = async (id) => {
+    if (!confirm('Are you sure you want to delete this profile?')) return;
+    try {
+      await deleteProfile(id);
+      setProfiles(prev => prev.filter(p => p.id !== id));
+      if (activeProfileId === id) {
+        const remaining = profiles.filter(p => p.id !== id);
+        if (remaining.length > 0) setActiveProfileId(remaining[0].id);
+      }
+      toast.success('Profile deleted from database');
+    } catch (error) {
+      toast.error('Failed to delete profile');
+    } finally {
+      setEditingProfile(null);
+    }
   };
 
-  const handleSetActive = (profileId) => {
-    persist(travelProfiles, profileId);
+  const handleSetActive = async (id) => {
+    try {
+      await setActiveProfileIdInDB(id);
+      setActiveProfileId(id);
+      setProfiles(prev => prev.map(p => ({ ...p, is_active: p.id === id })));
+      toast.success('Active profile updated');
+    } catch (error) {
+      toast.error('Failed to change active profile');
+    }
   };
 
   const activeProfile = travelProfiles.find(p => p.id === activeProfileId);
