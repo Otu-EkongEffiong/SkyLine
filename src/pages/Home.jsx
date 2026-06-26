@@ -12,7 +12,7 @@ import { getFlagEmoji, COUNTRIES } from '@/components/travel/PassportSelector';
 import { createPageUrl } from '@/utils';
 import BottomNav from '@/components/BottomNav';
 import { saveSearch } from '@/lib/searchStorage';
-import { loadUserProfile, getActiveTravelProfile } from '@/lib/profileStorage';
+import { loadUserProfile } from '@/lib/profileStorage';
 
 export default function Home() {
   const { t } = useTranslation();

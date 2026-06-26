@@ -12,7 +12,7 @@ import BottomNav from '@/components/BottomNav';
 import { createPageUrl } from '@/utils';
 import { searchFlights, getCheapestDates } from '@/components/api/flightClient';
 import { loadSearch, saveSearchResults, saveSelectedRoute } from '@/lib/searchStorage';
-import { loadUserProfile, getActiveTravelProfile, travelerProfilePayload } from '@/lib/profileStorage';
+import { loadUserProfile } from '@/lib/profileStorage';
 import { filterRoutes } from '@/lib/routeFilters';
 import { COUNTRIES, getFlagEmoji } from '@/components/travel/PassportSelector';
 import { addDays, format as formatDate } from 'date-fns';
@@ -20,8 +20,9 @@ import { addDays, format as formatDate } from 'date-fns';
 export default function SearchResults() {
   const navigate = useNavigate();
   const search = loadSearch();
-  const profile = getActiveTravelProfile(loadUserProfile());
 
+  // 💡 State to hold the active profile metadata once loaded
+  const [activeProfile, setActiveProfile] = useState(null);
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -39,12 +40,28 @@ export default function SearchResults() {
   const runSearch = async (searchData) => {
     setLoading(true);
     try {
+      // 1. Fetch the user's travel profile from Supabase
+      const { travel_profiles, active_profile_id } = await loadUserProfile();
+      const currentProfile = travel_profiles.find(p => String(p.id) === String(active_profile_id));
+      
+      // Save it to state so the UI badge can use it
+      if (currentProfile) {
+        setActiveProfile(currentProfile);
+      }
+
+      // 2. Manually construct the exact traveler profile object your backend expects
+      const formattedTravelerProfile = currentProfile ? {
+        passport_country: currentProfile.passport_country,
+        visas: currentProfile.visas || []
+      } : null;
+
+      // 3. Pass that formatted payload directly into searchFlights
       const offers = await searchFlights({
         origin: searchData.origin,
         destination: searchData.destination,
         departureDate: searchData.departureDate,
         returnDate: searchData.returnDate,
-        travelerProfile: travelerProfilePayload(profile),
+        travelerProfile: formattedTravelerProfile,
       });
       setRoutes(offers);
       saveSearchResults(offers);
@@ -79,8 +96,9 @@ export default function SearchResults() {
 
   if (!search) return null;
 
-  const passportCountry = profile?.passport_country
-    ? COUNTRIES.find((c) => c.code === profile.passport_country)
+  // 💡 Safely derive the passport metadata from state
+  const passportCountry = activeProfile?.passport_country
+    ? COUNTRIES.find((c) => c.code === activeProfile.passport_country)
     : null;
 
   const filtered = filterRoutes(routes, filter);
@@ -128,7 +146,7 @@ export default function SearchResults() {
                 <Sparkles className="w-5 h-5 text-sky-600 mt-0.5" />
                 <div>
                   <p className="font-medium text-sky-900 dark:text-sky-100">
-                    {getFlagEmoji(profile.passport_country)} Routes ranked for {passportCountry.name} passport
+                    {getFlagEmoji(activeProfile.passport_country)} Routes ranked for {passportCountry.name} passport
                   </p>
                   <p className="text-sm text-sky-700 dark:text-sky-300">
                     {routes.filter((r) => r.isRecommended).length} recommended · {routes.filter((r) => r.hasVisaIssue).length} require extra visas
@@ -139,7 +157,7 @@ export default function SearchResults() {
 
             <AIFlightSuggestions
               currentSearch={search}
-              profile={profile}
+              profile={activeProfile}
               onSearchModification={() => runSearch(search)}
             />
 
