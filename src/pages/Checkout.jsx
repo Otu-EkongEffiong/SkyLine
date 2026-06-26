@@ -15,7 +15,7 @@ import { loadSelectedRoute, loadSearch, clearBookingFlow } from '@/lib/searchSto
 import { priceOffer, createPaymentIntent, createBooking } from '@/components/api/flightClient';
 import { saveTrip } from '@/lib/tripStorage';
 import { useAuth } from '@/lib/AuthContext';
-import { loadUserProfile, getActiveTravelProfile } from '@/lib/profileStorage';
+import { loadUserProfile, setActiveProfile } from '@/lib/profileStorage';
 
 const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
