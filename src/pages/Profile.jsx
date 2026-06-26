@@ -35,13 +35,13 @@ function loadProfile() {
   } catch { return null; }
 }
 
-function saveProfile(data) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.error('Failed to save profile:', e);
-  }
-}
+// function saveProfile(data) {
+//   try {
+//     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+//   } catch (e) {
+//     console.error('Failed to save profile:', e);
+//   }
+// }
 
 const ACCESS_TILES = [
   { key: 'visa_free',       label: 'Visa Free',        icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/30', border: 'border-emerald-200 dark:border-emerald-800' },

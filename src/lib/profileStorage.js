@@ -25,6 +25,7 @@ const ACTIVE_PROFILE_KEY = 'skyline_active_profile_id';
  * @property {string} [visa_type]
  * @property {string} valid_from
  * @property {string} valid_until
+ * @property {string} [expiry_date]
  * @property {'single'|'double'|'multiple'} [entries_allowed]
  */
 
