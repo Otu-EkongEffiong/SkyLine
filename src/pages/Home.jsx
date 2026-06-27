@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, CheckCircle, Globe, AlertTriangle, Map } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -19,8 +19,36 @@ export default function Home() {
   const navigate = useNavigate();
   const [isSearching, setIsSearching] = useState(false);
 
-  const userProfile = loadUserProfile();
-  const profile = getActiveTravelProfile(userProfile);
+  // loadUserProfile() is async (it queries Supabase), so it must be
+  // awaited inside an effect — calling it directly during render, as
+  // a previous version of this file did, hands back a pending Promise
+  // instead of the { travel_profiles, active_profile_id } shape every
+  // other line here expects, which crashes the whole page to blank.
+  const [userProfile, setUserProfile] = useState({ travel_profiles: [], active_profile_id: null });
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const data = await loadUserProfile();
+        if (isMounted) setUserProfile(data || { travel_profiles: [], active_profile_id: null });
+      } catch (err) {
+        console.error('Home: failed to load user profile:', err);
+        if (isMounted) setUserProfile({ travel_profiles: [], active_profile_id: null });
+      } finally {
+        if (isMounted) setProfileLoading(false);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const profile = userProfile.travel_profiles?.find(
+    (p) => String(p.id) === String(userProfile.active_profile_id)
+  ) || userProfile.travel_profiles?.[0] || null;
+
   const passportCountry = profile?.passport_country
     ? COUNTRIES.find((c) => c.code === profile.passport_country)
     : null;
@@ -57,7 +85,7 @@ export default function Home() {
             </motion.p>
           </div>
 
-          {!userProfile?.travel_profiles?.length && (
+          {!profileLoading && !userProfile?.travel_profiles?.length && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="max-w-3xl mx-auto mb-6">
               <Alert className="bg-white/20 border-white/30 backdrop-blur-sm">
                 <Sparkles className="w-4 h-4 text-white" />
