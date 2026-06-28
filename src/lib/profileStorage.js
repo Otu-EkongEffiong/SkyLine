@@ -14,9 +14,19 @@
 // preference, not data that needs to survive across devices or be
 // queried), but the actual profile/visa records now live in Supabase.
 
+//added jsdoc expiry_date to fix supabase data error.
+
 import { supabase } from './supabaseClient';
+import { COUNTRIES } from '@/components/travel/PassportSelector';
 
 const ACTIVE_PROFILE_KEY = 'skyline_active_profile_id';
+
+/**
+ * @param {string} code
+ */
+function countryNameFor(code) {
+  return COUNTRIES.find((c) => c.code === code)?.name || code || '';
+}
 
 /**
  * @typedef {Object} SavedVisa
@@ -95,12 +105,14 @@ export async function loadUserProfile() {
     full_name: p.full_name,
     nationality: p.nationality,
     passport_country: p.passport_country,
+    passport_country_name: countryNameFor(p.passport_country),
     passport_number: p.passport_number,
     passport_expiry_date: p.passport_expiry,
     date_of_birth: p.date_of_birth,
     is_primary: p.is_primary,
     visas: (visas || []).map((v) => ({
       country_code: v.country,
+      country_name: countryNameFor(v.country),
       visa_type: v.visa_type,
       valid_from: v.valid_from,
       valid_until: v.valid_until,

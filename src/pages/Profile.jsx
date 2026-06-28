@@ -17,31 +17,16 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import BottomNav from '@/components/BottomNav';
 import VisaAlerts from '@/components/travel/VisaAlerts';
 
-
-// ── localStorage helpers ────────────────────────────────────────────────
-const STORAGE_KEY = 'skypath_user_profile'; // key kept for backward compat
-
+// loadUserProfile/saveProfile/deleteProfile/setActiveProfile are all
+// Supabase-backed (see src/lib/profileStorage.js) — there is no
+// `setActiveProfileIdInDB` export; that name never existed and was
+// the cause of the production build failure.
 import {
   loadUserProfile,
   saveProfile,
   deleteProfile,
-  setActiveProfile
+  setActiveProfile as persistActiveProfileId,
 } from '@/lib/profileStorage';
-
-function loadProfile() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-
-// function saveProfile(data) {
-//   try {
-//     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-//   } catch (e) {
-//     console.error('Failed to save profile:', e);
-//   }
-// }
 
 const ACCESS_TILES = [
   { key: 'visa_free',       label: 'Visa Free',        icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/30', border: 'border-emerald-200 dark:border-emerald-800' },
@@ -140,54 +125,46 @@ function TravelAccessSummary({ passportCode, passportName, visas, onOpen }) {
 export default function Profile() {
   const { t } = useTranslation();
 
-  const [profile, setProfile]               = useState(loadProfile);
-  const [travelProfiles, setTravelProfiles] = useState([]);
-  const [activeProfileId, setActiveProfileId] = useState(null);
-  const [isSaving, setIsSaving]             = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [editingProfile, setEditingProfile] = useState(null);
+  const [travelProfiles, setTravelProfiles]     = useState([]);
+  const [activeProfileId, setActiveProfileId]   = useState(null);
+  const [isSaving, setIsSaving]                 = useState(false);
+  const [loading, setLoading]                   = useState(true);
+  const [editingProfile, setEditingProfile]     = useState(null);
   const [showTravelAccess, setShowTravelAccess] = useState(false);
 
-  // Hydrate local state from profile on mount / profile change
-useEffect(() => {
-  async function fetchProfiles() {
-    try {
-      setLoading(true);
-      // Call loadUserProfile instead of getProfiles
-      const { travel_profiles, active_profile_id } = await loadUserProfile();
-      setProfiles(travel_profiles);
-      setActiveProfileId(active_profile_id);
-    } catch (error) {
-      toast.error('Failed to load profiles from database');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }
-  fetchProfiles();
-}, []);
+  // Load profiles + visas from Supabase on mount.
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const { travel_profiles, active_profile_id } = await loadUserProfile();
+        if (!isMounted) return;
+        setTravelProfiles(travel_profiles || []);
+        setActiveProfileId(active_profile_id);
+      } catch (error) {
+        console.error('Profile: failed to load profiles:', error);
+        toast.error('Failed to load profiles from database');
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
-  // Persist any change to localStorage and update local profile state
-  const persist = (travel_profiles, active_profile_id) => {
-    setIsSaving(true);
-    const updated = { ...(profile || {}), travel_profiles, active_profile_id };
-    saveProfile(updated);
-    setProfile(updated);
-    setTravelProfiles(travel_profiles);
-    setActiveProfileId(active_profile_id);
-    setTimeout(() => {
-      setIsSaving(false);
-      toast.success(t('profileSaved') || 'Profile saved');
-    }, 300);
-  };
-
+  // "Add Travel Profile" creates a new in-memory draft only; nothing
+  // is written to Supabase until the user actually edits and saves it
+  // via EditProfileModal (handleUpdateProfile below). This keeps
+  // empty/abandoned profiles out of the database.
   const handleAddProfile = () => {
     if (travelProfiles.length >= 2) {
       toast.error(t('maxProfilesReached') || 'Max 2 profiles allowed');
       return;
     }
-    const newProfile = {
-      id: `profile_${Date.now()}`,
+    const draftProfile = {
+      id: `draft_${Date.now()}`, // non-numeric id signals "not yet in DB" to saveProfile()
       profile_name: `Travel Profile ${travelProfiles.length + 1}`,
       full_name: '',
       passport_number: '',
@@ -197,32 +174,36 @@ useEffect(() => {
       date_of_birth: '',
       visas: [],
     };
-    const updated = [...travelProfiles, newProfile];
-    const newActiveId = activeProfileId || newProfile.id;
-    persist(updated, newActiveId);
+    setEditingProfile(draftProfile);
   };
 
   const handleUpdateProfile = async (updatedFields) => {
     setIsSaving(true);
     try {
-      // Pass full payload to the storage utility
       const saved = await saveProfile(updatedFields);
-      
-      setProfiles(prev => {
-        const exists = prev.some(p => p.id === saved.id);
+      // Re-attach the fields saveProfile()'s DB round-trip doesn't
+      // return (it only returns the passenger_profiles row), so the
+      // card/editor keep showing what the user just entered.
+      const merged = { ...updatedFields, ...saved, visas: updatedFields.visas || [] };
+
+      setTravelProfiles(prev => {
+        const exists = prev.some(p => String(p.id) === String(updatedFields.id));
         if (exists) {
-          return prev.map(p => p.id === saved.id ? saved : p);
+          return prev.map(p => (String(p.id) === String(updatedFields.id) ? merged : p));
         }
-        return [...prev, saved];
+        return [...prev, merged];
       });
 
-      if (saved.is_active || profiles.length === 0) {
-        setActiveProfileId(saved.id);
+      // First profile ever created becomes active automatically.
+      if (travelProfiles.length === 0) {
+        setActiveProfileId(merged.id);
+        persistActiveProfileId(merged.id);
       }
+
       toast.success('Profile saved to database successfully');
     } catch (error) {
-      toast.error('Failed to save profile');
-      console.error(error);
+      console.error('Profile: failed to save profile:', error);
+      toast.error(error.message || 'Failed to save profile');
     } finally {
       setIsSaving(false);
       setEditingProfile(null);
@@ -230,34 +211,55 @@ useEffect(() => {
   };
 
   const handleDeleteProfile = async (id) => {
-    if (!confirm('Are you sure you want to delete this profile?')) return;
+    if (!window.confirm('Are you sure you want to delete this profile?')) return;
     try {
-      await deleteProfile(id);
-      setProfiles(prev => prev.filter(p => p.id !== id));
-      if (activeProfileId === id) {
-        const remaining = profiles.filter(p => p.id !== id);
-        if (remaining.length > 0) setActiveProfileId(remaining[0].id);
-      }
-      toast.success('Profile deleted from database');
+      // Draft profiles (never saved) only exist client-side — skip the
+      // DB call entirely so deleting an unsaved draft doesn't 404/error.
+      const isDraft = String(id).startsWith('draft_');
+      if (!isDraft) await deleteProfile(id);
+
+      setTravelProfiles(prev => {
+        const remaining = prev.filter(p => String(p.id) !== String(id));
+        if (String(activeProfileId) === String(id)) {
+          const nextActive = remaining[0]?.id ?? null;
+          setActiveProfileId(nextActive);
+          if (nextActive) persistActiveProfileId(nextActive);
+        }
+        return remaining;
+      });
+
+      toast.success(isDraft ? 'Draft discarded' : 'Profile deleted from database');
     } catch (error) {
+      console.error('Profile: failed to delete profile:', error);
       toast.error('Failed to delete profile');
     } finally {
       setEditingProfile(null);
     }
   };
 
-  const handleSetActive = async (id) => {
-  try {
-    // Call setActiveProfile instead of setActiveProfileIdInDB
-    await setActiveProfile(id);
-    setActiveProfileId(id);
-    toast.success('Active profile updated');
-  } catch (error) {
-    toast.error('Failed to change active profile');
-  }
-};
+  const handleSetActive = (id) => {
+    try {
+      persistActiveProfileId(id);
+      setActiveProfileId(id);
+      toast.success('Active profile updated');
+    } catch (error) {
+      console.error('Profile: failed to set active profile:', error);
+      toast.error('Failed to change active profile');
+    }
+  };
 
-  const activeProfile = travelProfiles.find(p => p.id === activeProfileId);
+  const activeProfile = travelProfiles.find(p => String(p.id) === String(activeProfileId));
+
+  // Shape VisaAlerts.jsx expects: { travel_profiles: [...] }
+  const visaAlertsProfile = { travel_profiles: travelProfiles };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background dark:bg-slate-950 flex items-center justify-center pb-20">
+        <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background dark:bg-slate-950 pb-20 text-foreground dark:text-slate-100">
@@ -266,9 +268,9 @@ useEffect(() => {
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1920&q=80')] bg-cover bg-center opacity-10" />
         <div className="relative max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center justify-center mb-4">
-            <img 
-              src="/src/assets/icon.svg" 
-              alt="SkyLine Logo" 
+            <img
+              src="/src/assets/icon.svg"
+              alt="SkyLine Logo"
               className="h-16 w-auto object-contain"
             />
           </div>
@@ -282,14 +284,14 @@ useEffect(() => {
       <div className="max-w-7xl mx-auto px-4 py-8">
 
         {/* Passport / Visa expiry alerts */}
-        {profile && (
+        {travelProfiles.length > 0 && (
           <div className="mb-6">
-            <VisaAlerts profile={profile} />
+            <VisaAlerts profile={visaAlertsProfile} />
           </div>
         )}
 
         {/* Prompt to create first profile */}
-        {(!travelProfiles || travelProfiles.length === 0) && (
+        {travelProfiles.length === 0 && (
           <Alert className="mb-6 bg-sky-50 dark:bg-sky-950 border-sky-200 dark:border-sky-800">
             <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
             <AlertDescription className="text-sky-900 dark:text-sky-100">
@@ -309,7 +311,7 @@ useEffect(() => {
             >
               <TravelProfileCard
                 profile={prof}
-                isActive={prof.id === activeProfileId}
+                isActive={String(prof.id) === String(activeProfileId)}
                 onEdit={() => setEditingProfile(prof)}
                 onSetActive={() => handleSetActive(prof.id)}
               />
@@ -365,12 +367,12 @@ useEffect(() => {
         )}
 
         {/* Save indicator */}
-         {isSaving && (
-           <div className="fixed bottom-20 right-4 bg-slate-800 dark:bg-slate-700 text-white dark:text-slate-100 text-sm px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
-             <Loader2 className="w-4 h-4 animate-spin" />
-             Saving…
-           </div>
-         )}
+        {isSaving && (
+          <div className="fixed bottom-20 right-4 bg-slate-800 dark:bg-slate-700 text-white dark:text-slate-100 text-sm px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Saving…
+          </div>
+        )}
       </div>
 
       {/* Travel Access Modal */}
@@ -388,7 +390,7 @@ useEffect(() => {
       {editingProfile && (
         <EditProfileModal
           profile={editingProfile}
-          isActive={editingProfile.id === activeProfileId}
+          isActive={String(editingProfile.id) === String(activeProfileId)}
           onUpdate={handleUpdateProfile}
           onDelete={() => handleDeleteProfile(editingProfile.id)}
           onSetActive={() => handleSetActive(editingProfile.id)}
