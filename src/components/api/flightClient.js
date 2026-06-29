@@ -176,7 +176,7 @@ export async function searchFlights({ origin, destination, departureDate, return
         travelerProfile
       );
     }
-    throw err;
+    throw err;  
   }
 }
 

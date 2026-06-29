@@ -9,6 +9,7 @@
 // NEVER import the service-role key here — that belongs only in
 // netlify/functions/_lib/supabaseAdmin.js.
 
+// src/lib/supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -22,4 +23,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    storageKey: 'skypath-travel-auth-token', // Explicit storage key isolates the instance
+    detectSessionInUrl: true
+  }
+});
