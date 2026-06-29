@@ -140,20 +140,20 @@ export async function saveProfile(profile) {
   const userId = await getCurrentUserId();
   if (!userId) throw new Error('You must be signed in to save a travel profile.');
 
+  // Sanitize empty strings to null to avoid database constraint violations
   const profileRow = {
     user_id: userId,
+    profile_name: profile.profile_name || null,
     full_name: profile.full_name || 'Traveler',
     nationality: profile.nationality || profile.passport_country_name || null,
-    passport_country: profile.passport_country,
+    passport_country: profile.passport_country || null, // Fixes empty string constraint bugs
     passport_number: profile.passport_number || null,
     passport_expiry: profile.passport_expiry_date || null,
     date_of_birth: profile.date_of_birth || null,
+    home_airport: profile.home_airport || null, // Ensure home airport matches schema
   };
 
   let savedProfile;
-  // A real Supabase row has a numeric `id`. New, not-yet-saved profiles
-  // created client-side (e.g. `Date.now()` placeholder ids) won't match
-  // anything in the DB, so treat anything non-numeric-looking as "create".
   const isExistingRow = typeof profile.id === 'number' || /^\d+$/.test(String(profile.id));
 
   if (isExistingRow) {
@@ -161,7 +161,7 @@ export async function saveProfile(profile) {
       .from('passenger_profiles')
       .update(profileRow)
       .eq('id', profile.id)
-      .eq('user_id', userId) // belt-and-suspenders alongside RLS
+      .eq('user_id', userId)
       .select()
       .single();
     if (error) throw error;
@@ -176,9 +176,7 @@ export async function saveProfile(profile) {
     savedProfile = data;
   }
 
-  // Replace this user's visa set with whatever is currently in the
-  // form. Simpler and safer than diffing individual rows for a
-  // diploma-scope app, and avoids orphaned/duplicate visa rows.
+  // Replace this user's visa set
   if (Array.isArray(profile.visas)) {
     const { error: deleteError } = await supabase
       .from('saved_visas')
@@ -187,16 +185,21 @@ export async function saveProfile(profile) {
     if (deleteError) throw deleteError;
 
     if (profile.visas.length > 0) {
-      const visaRows = profile.visas.map((v) => ({
-        user_id: userId,
-        country: v.country_code,
-        visa_type: v.visa_type || null,
-        valid_from: v.valid_from || v.expiry_date || new Date().toISOString().slice(0, 10),
-        valid_until: v.valid_until || v.expiry_date,
-        entries_allowed: v.entries_allowed || 'multiple',
-      }));
-      const { error: insertError } = await supabase.from('saved_visas').insert(visaRows);
-      if (insertError) throw insertError;
+      const visaRows = profile.visas
+        .filter(v => v.country_code) // Prevent inserting empty codes
+        .map((v) => ({
+          user_id: userId,
+          country: v.country_code,
+          visa_type: v.visa_type || null,
+          valid_from: v.valid_from || v.expiry_date || new Date().toISOString().slice(0, 10),
+          valid_until: v.valid_until || v.expiry_date || new Date().toISOString().slice(0, 10),
+          entries_allowed: v.entries_allowed || 'multiple',
+        }));
+
+      if (visaRows.length > 0) {
+        const { error: insertError } = await supabase.from('saved_visas').insert(visaRows);
+        if (insertError) throw insertError;
+      }
     }
   }
 
@@ -204,9 +207,7 @@ export async function saveProfile(profile) {
 }
 
 /**
- * Deletes a passenger profile (and, since this diploma schema shares
- * one visa set per user, leaves visas untouched — they belong to the
- * user, not a specific profile row).
+ * 
  *
  * @param {string|number} profileId
  */
