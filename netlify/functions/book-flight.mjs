@@ -1,25 +1,7 @@
-// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
- 
-
-/**
- * POST / netlify/functions/flights-book
-// Body: {
-//   offerId: "off_...",
-//   passengers: [{ id, given_name, family_name, born_on, ... }],
-//   paymentIntentId: "pi_..."
-// }
-//
-// Confirms the Stripe PaymentIntent succeeded, creates the order with
-// Duffel, then persists a booking record to Supabase (trip details,
-// booking reference, passengers) so MyTrips.jsx / TripDetails.jsx can
-// read it back for the signed-in user.
-*/
-
-
-const Stripe = require('stripe');
-const { ok, badRequest, serverError, methodNotAllowed, parseBody } = require('./_lib/http');
-const duffel = require('./_lib/duffelClient');
-const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
+import Stripe from 'stripe';
+import { ok, badRequest, serverError, methodNotAllowed, parseBody } from './_lib/http.js';
+import { getOffer, createOrder } from './_lib/duffelClient.js';
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -27,7 +9,7 @@ function getStripe() {
   return new Stripe(key);
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'POST') return methodNotAllowed();
 
   const { offerId, passengers, paymentIntentId, userId } = parseBody(event);
@@ -43,11 +25,24 @@ exports.handler = async (event) => {
       return badRequest(`Payment has not completed (status: ${paymentIntent.status}).`);
     }
 
-    // 2. Create the order with Duffel.
-    const orderResult = await duffel.createOrder({ offerId, passengers });
+    // 2. Fetch offer details to attach required Duffel passenger `id`s (e.g. pas_0000...)
+    const offerDetails = await getOffer(offerId);
+    const offerPassengers = offerDetails?.data?.passengers || [];
+
+    const formattedPassengers = passengers.map((p, index) => ({
+      ...p,
+      id: p.id || offerPassengers[index]?.id,
+    }));
+
+    // 3. Create the order with Duffel using the updated passenger list.
+    const orderResult = await createOrder({ offerId, passengers: formattedPassengers });
     const order = orderResult?.data;
 
-    // 3. Persist the booking to Supabase for MyTrips / TripDetails.
+    if (!order) {
+      return serverError('Failed to retrieve order data from Duffel.');
+    }
+
+    // 4. Persist the booking to Supabase for MyTrips / TripDetails.
     const supabase = getSupabaseAdmin();
     const tripRecord = {
       booking_reference: order.booking_reference,
@@ -61,7 +56,7 @@ exports.handler = async (event) => {
       price: parseFloat(order.total_amount),
       currency: order.total_currency,
       payment_intent_id: paymentIntentId,
-      passengers,
+      passengers: formattedPassengers,
       segments: order.slices.flatMap((slice) => slice.segments),
       created_at: new Date().toISOString(),
     };
@@ -84,7 +79,7 @@ exports.handler = async (event) => {
       trip: savedTrip || tripRecord,
     });
   } catch (err) {
-    console.error('flights-book error:', err);
+    console.error('book-flight error:', err);
     return serverError(err.message || 'Booking failed.');
   }
 };

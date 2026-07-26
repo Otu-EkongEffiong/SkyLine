@@ -13,14 +13,14 @@ import { COUNTRIES, getFlagEmoji } from '@/components/travel/PassportSelector';
 import VisaMap from '@/components/travel/VisaMap';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '@/components/translations';
-import LanguageSwitcher from '@/components/LanguageSwitcher';
 import BottomNav from '@/components/BottomNav';
 import VisaAlerts from '@/components/travel/VisaAlerts';
+import { useAuth } from '@/lib/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
-// loadUserProfile/saveProfile/deleteProfile/setActiveProfile are all
-// Supabase-backed (see src/lib/profileStorage.js) — there is no
-// `setActiveProfileIdInDB` export; that name never existed and was
-// the cause of the production build failure.
+// Supabase-backed persistence — NOT localStorage. Every one of these
+// is async and actually talks to passenger_profiles / saved_visas.
 import {
   loadUserProfile,
   saveProfile,
@@ -71,12 +71,10 @@ function TravelAccessSummary({ passportCode, passportName, visas, onOpen }) {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        {/* Map */}
         <div className="mb-3">
           <VisaMap passportCode={passportCode} visas={visas} />
         </div>
 
-        {/* Legend */}
         <div className="flex flex-wrap gap-2 justify-center mb-3">
           {ACCESS_TILES.map(tile => {
             const count = buckets[tile.key] || 0;
@@ -124,6 +122,8 @@ function TravelAccessSummary({ passportCode, passportName, visas, onOpen }) {
 
 export default function Profile() {
   const { t } = useTranslation();
+  const { user, isAuthenticated, isLoadingAuth } = useAuth();
+  const navigate = useNavigate();
 
   const [travelProfiles, setTravelProfiles]     = useState([]);
   const [activeProfileId, setActiveProfileId]   = useState(null);
@@ -132,8 +132,11 @@ export default function Profile() {
   const [editingProfile, setEditingProfile]     = useState(null);
   const [showTravelAccess, setShowTravelAccess] = useState(false);
 
-  // Load profiles + visas from Supabase on mount.
+  // Load profiles + visas from Supabase — NOT localStorage — the
+  // moment we know whether the user is authenticated.
   useEffect(() => {
+    if (isLoadingAuth) return; // wait for auth state to resolve first
+
     let isMounted = true;
     (async () => {
       try {
@@ -149,22 +152,21 @@ export default function Profile() {
         if (isMounted) setLoading(false);
       }
     })();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    return () => { isMounted = false; };
+  }, [isLoadingAuth, isAuthenticated]);
 
-  // "Add Travel Profile" creates a new in-memory draft only; nothing
-  // is written to Supabase until the user actually edits and saves it
-  // via EditProfileModal (handleUpdateProfile below). This keeps
-  // empty/abandoned profiles out of the database.
   const handleAddProfile = () => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in to create a travel profile.');
+      navigate(createPageUrl('Login'));
+      return;
+    }
     if (travelProfiles.length >= 2) {
       toast.error(t('maxProfilesReached') || 'Max 2 profiles allowed');
       return;
     }
     const draftProfile = {
-      id: `draft_${Date.now()}`, // non-numeric id signals "not yet in DB" to saveProfile()
+      id: `draft_${Date.now()}`, // non-numeric id → saveProfile() treats this as "create"
       profile_name: `Travel Profile ${travelProfiles.length + 1}`,
       full_name: '',
       passport_number: '',
@@ -181,9 +183,6 @@ export default function Profile() {
     setIsSaving(true);
     try {
       const saved = await saveProfile(updatedFields);
-      // Re-attach the fields saveProfile()'s DB round-trip doesn't
-      // return (it only returns the passenger_profiles row), so the
-      // card/editor keep showing what the user just entered.
       const merged = { ...updatedFields, ...saved, visas: updatedFields.visas || [] };
 
       setTravelProfiles(prev => {
@@ -194,7 +193,6 @@ export default function Profile() {
         return [...prev, merged];
       });
 
-      // First profile ever created becomes active automatically.
       if (travelProfiles.length === 0) {
         setActiveProfileId(merged.id);
         persistActiveProfileId(merged.id);
@@ -204,17 +202,15 @@ export default function Profile() {
     } catch (error) {
       console.error('Profile: failed to save profile:', error);
       toast.error(error.message || 'Failed to save profile');
+      throw error; // let EditProfileModal know the save failed, so it keeps the modal open
     } finally {
       setIsSaving(false);
-      setEditingProfile(null);
     }
   };
 
   const handleDeleteProfile = async (id) => {
     if (!window.confirm('Are you sure you want to delete this profile?')) return;
     try {
-      // Draft profiles (never saved) only exist client-side — skip the
-      // DB call entirely so deleting an unsaved draft doesn't 404/error.
       const isDraft = String(id).startsWith('draft_');
       if (!isDraft) await deleteProfile(id);
 
@@ -249,11 +245,9 @@ export default function Profile() {
   };
 
   const activeProfile = travelProfiles.find(p => String(p.id) === String(activeProfileId));
-
-  // Shape VisaAlerts.jsx expects: { travel_profiles: [...] }
   const visaAlertsProfile = { travel_profiles: travelProfiles };
 
-  if (loading) {
+  if (isLoadingAuth || loading) {
     return (
       <div className="min-h-screen bg-background dark:bg-slate-950 flex items-center justify-center pb-20">
         <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
@@ -283,6 +277,17 @@ export default function Profile() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
 
+        {/* Sign-in prompt if not authenticated */}
+        {!isAuthenticated && (
+          <Alert className="mb-6 bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+            <User className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-amber-900 dark:text-amber-100">
+              <Link to={createPageUrl('Login')} className="underline font-semibold">Sign in</Link>
+              {' '}to create and save travel profiles.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Passport / Visa expiry alerts */}
         {travelProfiles.length > 0 && (
           <div className="mb-6">
@@ -291,7 +296,7 @@ export default function Profile() {
         )}
 
         {/* Prompt to create first profile */}
-        {travelProfiles.length === 0 && (
+        {isAuthenticated && travelProfiles.length === 0 && (
           <Alert className="mb-6 bg-sky-50 dark:bg-sky-950 border-sky-200 dark:border-sky-800">
             <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
             <AlertDescription className="text-sky-900 dark:text-sky-100">
@@ -318,7 +323,6 @@ export default function Profile() {
             </motion.div>
           ))}
 
-          {/* Add profile button */}
           {travelProfiles.length < 2 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -349,7 +353,6 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Travel Access summary tiles */}
         {activeProfile?.passport_country && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -366,7 +369,6 @@ export default function Profile() {
           </motion.div>
         )}
 
-        {/* Save indicator */}
         {isSaving && (
           <div className="fixed bottom-20 right-4 bg-slate-800 dark:bg-slate-700 text-white dark:text-slate-100 text-sm px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -375,7 +377,6 @@ export default function Profile() {
         )}
       </div>
 
-      {/* Travel Access Modal */}
       <AnimatePresence>
         {showTravelAccess && activeProfile?.passport_country && (
           <TravelAccessModal

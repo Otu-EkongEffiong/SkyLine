@@ -1,14 +1,5 @@
-// POST / netlify/functions/payments-create-intent
-// Body: { offerId: "off_...", amount: 45000, currency: "usd" }
-//   (amount is in the smallest currency unit, e.g. cents)
-//
-// Creates a Stripe PaymentIntent in test mode for the checkout flow.
-// The frontend uses the returned clientSecret with Stripe.js /
-// @stripe/react-stripe-js to collect card details, then calls
-// flights-book once payment succeeds.
-
-const Stripe = require('stripe');
-const { ok, badRequest, serverError, methodNotAllowed, parseBody } = require('./_lib/http');
+import Stripe from 'stripe';
+import { ok, badRequest, serverError, methodNotAllowed, parseBody } from './_lib/http.js';
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -16,7 +7,7 @@ function getStripe() {
   return new Stripe(key);
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'POST') return methodNotAllowed();
 
   const { offerId, amount, currency } = parseBody(event);

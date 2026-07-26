@@ -50,6 +50,7 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
   const { t } = useTranslation();
   const [editedProfile, setEditedProfile] = useState(profile);
   const [openSection, setOpenSection] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setEditedProfile(profile);
@@ -64,13 +65,23 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
     setEditedProfile(prev => ({ ...prev, ...updates }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editedProfile?.profile_name?.trim()) {
       alert("Profile name is required.");
       return;
     }
-    onUpdate(editedProfile);
-    onClose();
+    
+    try {
+      setIsSaving(true);
+      // Let the parent layout context pass data to saveProfile and manage state updates
+      await onUpdate(editedProfile);
+      onClose();
+    } catch (err) {
+      console.error("failed to save profile:", err);
+      alert(err.message || "Failed to preserve your details");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = () => {
@@ -144,6 +155,11 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
           role="dialog"
           aria-label="Edit Travel Profile"
         >
+          {/* Radix Accessibility element to silence terminal warnings */}
+          <span className="sr-only">
+            This workspace adjusts primary identification rules, home routing parameters, and active tourist visa authorizations.
+          </span>
+
           {/* Header */}
           <div className="sticky top-0 z-10 px-4 pt-5 pb-3"
             style={{ background: 'linear-gradient(160deg, #3FA9F5 0%, #14B8A6 100%)' }}>
@@ -155,49 +171,38 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
               </div>
               <div className="flex items-center gap-1">
                 {!isActive && (
-                  <
-// @ts-ignore
-                  Button size="sm" variant="ghost" onClick={() => { onSetActive(); onClose(); }}
+                  <Button size="sm" variant="ghost" onClick={() => { onSetActive(); onClose(); }}
                     className="text-white hover:bg-white/20 text-xs font-semibold">
                     Set Active
                   </Button>
                 )}
-                <
-// @ts-ignore
-                Button size="sm" variant="ghost" onClick={handleSave}
+                <Button size="sm" variant="ghost" onClick={handleSave} disabled={isSaving}
                   className="text-white hover:bg-white/20 text-xs font-semibold">
                   <Check className="w-4 h-4 mr-1" />
-                  Save
+                  {isSaving ? "Saving..." : "Save"}
                 </Button>
-                <
-// @ts-ignore
-                Button size="sm" variant="ghost" onClick={handleDelete}
+                <Button size="sm" variant="ghost" onClick={handleDelete}
                   className="text-red-700 hover:bg-red-100/40">
                   <Trash2 className="w-4 h-4" />
                 </Button>
-                <
-// @ts-ignore
-                Button size="icon" variant="ghost" onClick={onClose}
+                <Button size="icon" variant="ghost" onClick={onClose}
                   className="text-white hover:bg-white/20">
                   <X className="w-5 h-5" />
                 </Button>
               </div>
             </div>
 
-            {/* Profile Name */}
-            <div className="mb-1">
-              <
-// @ts-ignore
-              Label className="text-sky-100 text-xs font-semibold uppercase tracking-wide mb-1 block">Profile Name</Label>
-              <Input
-                // @ts-ignore
-                value={editedProfile.profile_name || ''}
-                onChange={(e) => handleFieldChange({ profile_name: e.target.value })}
-                placeholder="e.g., Primary Passport"
-                className="bg-white/30 border-white/30 text-white placeholder:text-sky-100/70 font-semibold text-base focus:bg-white/40"
-              />
-            </div>
+          {/* Profile Name */}
+          <div className="mb-1">
+            <Label className="text-sky-100 text-xs font-semibold uppercase tracking-wide mb-1 block">Profile Name</Label>
+            <Input
+              value={editedProfile.profile_name || ''}
+              onChange={(e) => handleFieldChange({ profile_name: e.target.value })}
+              placeholder="e.g., Primary Passport"
+              className="bg-white/30 border-white/30 text-white placeholder:text-sky-100/70 font-semibold text-base focus:bg-white/40"
+            />
           </div>
+        </div>
 
           {/* Accordion Sections */}
           <div className="px-4 pb-4 space-y-3 pt-3">
@@ -209,11 +214,8 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
               filled={personalFilled}
             >
               <div className="space-y-2">
-                <
-// @ts-ignore
-                Label className="text-teal-900 text-xs font-semibold">Full Name (as on passport)</Label>
+                <Label className="text-teal-900 text-xs font-semibold">Full Name (as on passport)</Label>
                 <Input
-                  // @ts-ignore
                   value={editedProfile.full_name || ''}
                   onChange={(e) => handleFieldChange({ full_name: e.target.value })}
                   placeholder="John Doe"
@@ -221,11 +223,8 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
                 />
               </div>
               <div className="space-y-2">
-                <
-// @ts-ignore
-                Label className="text-teal-900 text-xs font-semibold">Date of Birth</Label>
+                <Label className="text-teal-900 text-xs font-semibold">Date of Birth</Label>
                 <Input
-                  // @ts-ignore
                   type="date"
                   value={editedProfile.date_of_birth || ''}
                   onChange={(e) => handleFieldChange({ date_of_birth: e.target.value })}
@@ -242,9 +241,7 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
               filled={passportFilled}
             >
               <div className="space-y-2">
-                <
-// @ts-ignore
-                Label className="text-teal-900 text-xs font-semibold">{t('selectPassport')}</Label>
+                <Label className="text-teal-900 text-xs font-semibold">{t('selectPassport')}</Label>
                 <PassportSelectorInput
                   value={editedProfile.passport_country}
                   onChange={(countryCode, countryName) =>
@@ -253,11 +250,8 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
                 />
               </div>
               <div className="space-y-2">
-                <
-// @ts-ignore
-                Label className="text-teal-900 text-xs font-semibold">Passport Number</Label>
+                <Label className="text-teal-900 text-xs font-semibold">Passport Number</Label>
                 <Input
-                  // @ts-ignore
                   value={editedProfile.passport_number || ''}
                   onChange={(e) => handleFieldChange({ passport_number: e.target.value })}
                   placeholder="ABC123456"
@@ -265,11 +259,8 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
                 />
               </div>
               <div className="space-y-2">
-                <
-// @ts-ignore
-                Label className="text-teal-900 text-xs font-semibold">Passport Expiry Date</Label>
+                <Label className="text-teal-900 text-xs font-semibold">Passport Expiry Date</Label>
                 <Input
-                  // @ts-ignore
                   type="date"
                   value={editedProfile.passport_expiry_date || ''}
                   onChange={(e) => handleFieldChange({ passport_expiry_date: e.target.value })}
@@ -286,11 +277,8 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
               filled={!!editedProfile.home_airport?.code}
             >
               <div className="space-y-2 relative">
-                <
-// @ts-ignore
-                Label className="text-teal-900 text-xs font-semibold">Your departure airport (auto-fills search)</Label>
+                <Label className="text-teal-900 text-xs font-semibold">Your departure airport (auto-fills search)</Label>
                 <Input
-                  // @ts-ignore
                   value={airportQuery}
                   onChange={handleAirportInput}
                   onFocus={() => airportResults.length > 0 && setAirportOpen(true)}
@@ -321,7 +309,7 @@ export default function EditProfileModal({ profile, isActive, onUpdate, onDelete
                   <button
                     type="button"
                     onClick={() => { setAirportQuery(''); handleFieldChange({ home_airport: null }); }}
-                    className="text-xs text-red-500 hover:underline animate-none"
+                    className="text-xs text-red-500 hover:underline block mt-1"
                   >
                     Clear home airport
                   </button>

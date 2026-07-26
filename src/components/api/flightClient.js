@@ -1,19 +1,3 @@
-/**
- * Flight API client — all calls go through Netlify Functions.
- * Import from '@/components/api/flightClient' (amadeusClient re-exports this).
- *
- * Endpoint naming matches the files in netlify/functions/ exactly:
- *   airports-search.js, flights-search.js, flights-cheapest-dates.js,
- *   flight-status.js, aircraft-position.js, live-flights.js,
- *   flights-price.js, flights-book.js, visa-check.js,
- *   payments-create-intent.js
- *
- * In dev (`npm run dev` without `netlify dev`), Netlify Functions aren't
- * reachable, so every call falls back to data from '@/lib/mockFlights'
- * — but ONLY when `import.meta.env.DEV` is true. In production, a
- * failed call always rethrows so a real outage is never silently
- * masked by fake data.
- */
 import { generateMockOffers, generateMockCalendarPrices, generateMockLiveFlights } from '@/lib/mockFlights';
 
 const FUNCTIONS_BASE = '/.netlify/functions';
@@ -166,6 +150,7 @@ export async function searchFlights({ origin, destination, departureDate, return
     return data.offers || [];
   } catch (err) {
     if (import.meta.env.DEV) {
+      // @ts-ignore
       console.warn('searchFlights falling back to mock data:', err.message);
       return generateMockOffers(
         {
@@ -194,6 +179,13 @@ export async function getCheapestDates({ origin, destination, fromDate, toDate }
       from: fromDate,
       to: toDate,
     });
+
+    // FIX: If Kiwi key is missing, the backend safely returns an empty prices object with a warning.
+    if ((!data.prices || Object.keys(data.prices).length === 0) && import.meta.env.DEV && fromDate) {
+      console.warn('flights-cheapest-dates returned empty data; falling back to mock calendar generation.');
+      return /** @type {Record<string, number>} */(generateMockCalendarPrices(fromDate));
+    }
+
     return data.prices || /** @type {Record<string, number>} */ ({});
   } catch {
     if (import.meta.env.DEV && fromDate) {
@@ -224,6 +216,7 @@ export async function getFlightStatus(carrierCode, flightNumber, date) {
     });
     return data.status || null;
   } catch (err) {
+    // @ts-ignore
     console.warn('getFlightStatus failed:', err.message);
     return null;
   }
@@ -242,6 +235,7 @@ export async function getLiveAircraftPosition(icao24) {
     const data = await getJSON('aircraft-position', { icao24 });
     return data.position || null;
   } catch (err) {
+    // @ts-ignore
     console.warn('getLiveAircraftPosition failed:', err.message);
     return null;
   }
@@ -261,6 +255,7 @@ export async function getLiveFlights(bounds = {}) {
     return data;
   } catch (err) {
     if (import.meta.env.DEV) {
+      // @ts-ignore
       console.warn('getLiveFlights falling back to mock:', err.message);
       return generateMockLiveFlights(bounds);
     }
@@ -303,7 +298,7 @@ export async function priceOffer(offerId) {
  */
 export async function createPaymentIntent({ offerId, amount, currency }) {
   try {
-    return await postJSON('payments-create-intent', { offerId, amount, currency });
+    return await postJSON('create-payment-intent', { offerId, amount, currency });
   } catch (err) {
     if (import.meta.env.DEV) {
       throw new Error('Stripe not available in dev without Netlify — run `netlify dev` or use demo checkout.');
@@ -325,7 +320,7 @@ export async function createPaymentIntent({ offerId, amount, currency }) {
  */
 export async function createBooking({ offerId, passengers, paymentIntentId, userId }) {
   try {
-    return await postJSON('flights-book', { offerId, passengers, paymentIntentId, userId });
+    return await postJSON('book-flight', { offerId, passengers, paymentIntentId, userId });
   } catch (err) {
     if (import.meta.env.DEV) {
       return { bookingReference: `SKY-${Date.now().toString(36).toUpperCase()}`, orderId: offerId };

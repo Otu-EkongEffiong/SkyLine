@@ -9,7 +9,7 @@ const { ok, badRequest, serverError, methodNotAllowed } = require('./_lib/http')
 
 const OPENSKY_BASE_URL = 'https://opensky-network.org/api';
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'GET') return methodNotAllowed();
 
   const { icao24 } = event.queryStringParameters || {};

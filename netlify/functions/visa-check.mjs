@@ -16,7 +16,7 @@
 const { ok, badRequest, serverError, methodNotAllowed, parseBody } = require('./_lib/http');
 const { getVisaStatus } = require('./_lib/visaRules');
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'POST') return methodNotAllowed();
 
   const { passportCountry, routeCountries, existingVisas } = parseBody(event);

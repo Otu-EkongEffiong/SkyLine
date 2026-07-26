@@ -4,9 +4,6 @@ const { searchSampleAirports } = require('./_lib/sampleAirports');
 
 function toClientShape(row) {
   return {
-    // Prefer IATA (what Duffel and most frontends expect), fall back to
-    // ICAO so small airports without an IATA code still render something
-    // usable instead of `null` in the picker.
     code: row.iata_code || row.icao_code || '',
     icao: row.icao_code,
     name: row.name,
@@ -18,7 +15,7 @@ function toClientShape(row) {
   };
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'GET') return methodNotAllowed();
 
   const query = (event.queryStringParameters?.q || '').trim();
@@ -43,10 +40,6 @@ exports.handler = async (event) => {
 
     if (error) throw error;
 
-    // Prefer rows that actually have a bookable IATA code (Duffel and
-    // most airlines search by IATA), but don't throw ICAO-only rows
-    // away entirely — surface them too, sorted after IATA matches, so
-    // the user still sees *something* for small airports.
     const withIata = (data || []).filter((row) => row.iata_code);
     const icaoOnly = (data || []).filter((row) => !row.iata_code);
     const combined = [...withIata, ...icaoOnly];

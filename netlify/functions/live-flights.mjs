@@ -1,58 +1,28 @@
-// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
- 
-
-
-// GET / netlify/functions/live-flights
+// netlify/functions/live-flights.js
+//
+// GET /.netlify/functions/live-flights
 // Optional query params (OpenSky bounding box):
-//   lamin, lomin, lamax, lomax  — decimal degrees
+//   lamin, lomin, lamax, lomax  — decimal degrees, viewport bounds
 //   onGround=true|false         — filter by ground status (default: airborne only)
 //
-// Returns all (or viewport-filtered) aircraft state vectors from OpenSky
-// Network. Free for anonymous use; set OPENSKY_USERNAME / OPENSKY_PASSWORD
-// env vars to raise rate limits.
-// Docs: https://openskynetwork.github.io/opensky-api/rest.html
+// FIXED: OpenSky retired Basic Auth (username/password)
 
-const { ok, serverError, methodNotAllowed } = require('./_lib/http');
+import { ok, serverError, methodNotAllowed } from './_lib/http';
+import { getOpenSkyAuthHeaders } from './_lib/openskyAuth';
 
-const OPENSKY_BASE_URL = 'https://opensky-network.org/api/states/all';
-
-function openskyHeaders() {
-  const headers = {};
-  const { OPENSKY_USERNAME, OPENSKY_PASSWORD } = process.env;
-  if (OPENSKY_USERNAME && OPENSKY_PASSWORD) {
-    const basic = Buffer.from(`${OPENSKY_USERNAME}:${OPENSKY_PASSWORD}`).toString('base64');
-    headers.Authorization = `Basic ${basic}`;
-  }
-  return headers;
-}
+const OPENSKY_STATES_URL = 'https://opensky-network.org/api/states/all';
 
 function parseOnGroundFilter(value) {
   if (value === 'true') return true;
   if (value === 'false') return false;
-  return null; // no filter
+  return null;
 }
 
-/**
- * Map an OpenSky "state vector" array to a plain object.
- * Schema: https://openskynetwork.github.io/opensky-api/rest.html#response
- */
 function normalizeState(state) {
   const [
-    icao24,
-    callsign,
-    originCountry,
-    timePosition,
-    lastContact,
-    longitude,
-    latitude,
-    baroAltitude,
-    onGround,
-    velocity,
-    trueTrack,
-    verticalRate,
-    ,
-    geoAltitude,
-    squawk,
+    icao24, callsign, originCountry, timePosition, lastContact,
+    longitude, latitude, baroAltitude, onGround, velocity,
+    trueTrack, verticalRate, , geoAltitude, squawk,
   ] = state;
 
   return {
@@ -72,41 +42,41 @@ function normalizeState(state) {
   };
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'GET') return methodNotAllowed();
 
   const params = event.queryStringParameters || {};
   const onGroundFilter = parseOnGroundFilter(params.onGround);
 
   try {
-    const url = new URL(`${OPENSKY_BASE_URL}/states/all`);
-
-    // Optional viewport filter — keeps payloads smaller for map views.
+    const url = new URL(OPENSKY_STATES_URL);
     for (const key of ['lamin', 'lomin', 'lamax', 'lomax']) {
       if (params[key] !== undefined && params[key] !== '') {
         url.searchParams.set(key, params[key]);
       }
     }
 
-    const res = await fetch(url.toString(), { headers: openskyHeaders() });
-    if (!res.ok) throw new Error(`OpenSky request failed (${res.status})`);
+    const headers = await getOpenSkyAuthHeaders();
+    const res = await fetch(url.toString(), { headers });
+
+    if (!res.ok) {
+      // Surface the real status instead of a generic error — helps
+      // distinguish "no data for this bbox right now" (204/empty)
+      // from real auth failures (401/403) at a glance in the logs.
+      const bodyText = await res.text().catch(() => '');
+      throw new Error(`OpenSky request failed (${res.status}): ${bodyText.slice(0, 200)}`);
+    }
 
     const data = await res.json();
     const states = data?.states || [];
 
-    const flights = states
-      .map(normalizeState)
-      .filter((flight) => {
-        if (flight.lat == null || flight.lon == null) return false;
-        if (onGroundFilter === null) return !flight.onGround;
-        return flight.onGround === onGroundFilter;
-      });
-
-    return ok({
-      time: data.time ?? null,
-      count: flights.length,
-      flights,
+    const flights = states.map(normalizeState).filter((flight) => {
+      if (flight.lat == null || flight.lon == null) return false;
+      if (onGroundFilter === null) return !flight.onGround;
+      return flight.onGround === onGroundFilter;
     });
+
+    return ok({ time: data.time ?? null, count: flights.length, flights });
   } catch (err) {
     console.error('live-flights error:', err);
     return serverError(err.message || 'Could not fetch live flights.');

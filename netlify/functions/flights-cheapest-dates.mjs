@@ -1,6 +1,3 @@
-// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
- 
-
 /**
  * netlify/functions/flights-cheapest-dates.js
 
@@ -15,7 +12,7 @@
 const { ok, badRequest, serverError, methodNotAllowed } = require('./_lib/http');
 const kiwi = require('./_lib/kiwiClient');
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'GET') return methodNotAllowed();
 
   const { origin, destination, from, to } = event.queryStringParameters || {};

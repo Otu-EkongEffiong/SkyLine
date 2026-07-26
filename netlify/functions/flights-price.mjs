@@ -1,19 +1,9 @@
-// Docs on request and context https://docs netlify.com/functions/build/#code-your-function-2
- 
+//naming issue fixed
 
-/**
- * netlify/functions/flights-price.js
-//
-// POST / netlify/functions/flights-price
-// Body: { offerId: "off_00009htYpSCXrwQxQpe..." }
-//
-// Re-fetches a Duffel offer right before checkout to confirm price and
-// availability haven't changed since the search results were shown.
-*/
 const { ok, badRequest, serverError, methodNotAllowed, parseBody } = require('./_lib/http');
 const duffel = require('./_lib/duffelClient');
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'POST') return methodNotAllowed();
 
   const { offerId } = parseBody(event);

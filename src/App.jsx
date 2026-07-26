@@ -7,6 +7,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { TabNavigationProvider } from '@/lib/TabNavigationContext';
+import AuthCallback from '@/pages/AuthCallback';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -29,6 +30,7 @@ const AuthenticatedApp = () => {
 
   return (
     <Routes>
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/" element={
         <LayoutWrapper currentPageName={mainPageKey}>
           <MainPage />

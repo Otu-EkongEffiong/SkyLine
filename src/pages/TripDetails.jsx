@@ -111,7 +111,7 @@ ${trip.passengers?.map(p => `${p.name} - Seat: ${p.seat || 'Not assigned'}`).joi
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `itinerary-${trip.booking_reference}.txt`;
+    a.download = `itinerary-${trip.booking_reference}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
   };

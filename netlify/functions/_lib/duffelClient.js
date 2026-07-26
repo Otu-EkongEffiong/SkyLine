@@ -1,14 +1,10 @@
-// Thin wrapper around the Duffel REST API.
-// Docs: https://duffel.com/docs/api/overview/welcome
-
+// netlify/functions/_lib/duffelClient.js
 const DUFFEL_BASE_URL = 'https://api.duffel.com';
 const DUFFEL_API_VERSION = 'v2';
 
 function getDuffelHeaders() {
   const token = process.env.DUFFEL_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error('DUFFEL_ACCESS_TOKEN is not configured.');
-  }
+  if (!token) throw new Error('DUFFEL_ACCESS_TOKEN is not configured.');
   return {
     Authorization: `Bearer ${token}`,
     'Duffel-Version': DUFFEL_API_VERSION,
@@ -23,9 +19,7 @@ async function duffelRequest(path, { method = 'GET', body } = {}) {
     headers: getDuffelHeaders(),
     body: body ? JSON.stringify(body) : undefined,
   });
-
   const json = await res.json().catch(() => ({}));
-
   if (!res.ok) {
     const message = json?.errors?.[0]?.message || `Duffel request failed (${res.status})`;
     const error = new Error(message);
@@ -33,16 +27,12 @@ async function duffelRequest(path, { method = 'GET', body } = {}) {
     error.details = json;
     throw error;
   }
-
   return json;
 }
 
 export async function createOfferRequest({ origin, destination, departureDate, returnDate, passengers }) {
   const slices = [{ origin, destination, departure_date: departureDate }];
-  if (returnDate) {
-    slices.push({ origin: destination, destination: origin, departure_date: returnDate });
-  }
-
+  if (returnDate) slices.push({ origin: destination, destination: origin, departure_date: returnDate });
   const body = {
     data: {
       slices,
@@ -50,11 +40,7 @@ export async function createOfferRequest({ origin, destination, departureDate, r
       cabin_class: 'economy',
     },
   };
-
-  return duffelRequest('/air/offer_requests?return_offers=true&supplier_timeout=15000', {
-    method: 'POST',
-    body,
-  });
+  return duffelRequest('/air/offer_requests?return_offers=true&supplier_timeout=15000', { method: 'POST', body });
 }
 
 export async function getOffer(offerId) {
@@ -62,6 +48,10 @@ export async function getOffer(offerId) {
 }
 
 export async function createOrder({ offerId, passengers, paymentType = 'balance' }) {
+  const offerResult = await getOffer(offerId);
+  const offer = offerResult?.data;
+  if (!offer) throw new Error('Could not re-fetch offer before creating order.');
+
   const body = {
     data: {
       type: 'instant',
@@ -70,7 +60,8 @@ export async function createOrder({ offerId, passengers, paymentType = 'balance'
       payments: [
         {
           type: paymentType,
-          currency: 'GBP',
+          amount: offer.total_amount,     // string, e.g. "220.00" — must match exactly
+          currency: offer.total_currency,  // e.g. "GBP", "USD" — must match exactly
         },
       ],
     },

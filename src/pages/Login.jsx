@@ -1,18 +1,17 @@
 // @ts-nocheck
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plane, Mail, Lock, User } from 'lucide-react';
+import { Plane, Mail, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { useAuth } from '@/lib/AuthContext';
 import { createPageUrl } from '@/utils';
+import { supabase } from '@/lib/supabaseClient'; // Ensure this path matches your project structure
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,11 +20,18 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login({ email, password });
+      // Direct email/password sign-in matching documentation implementation
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (error) throw error;
+
       toast.success('Welcome back!');
-      navigate(createPageUrl('Home'));
+      navigate(createPageUrl('Profile')); // Go straight to the user profile page
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || 'Invalid login credentials.');
     } finally {
       setLoading(false);
     }

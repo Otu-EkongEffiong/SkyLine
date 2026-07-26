@@ -31,7 +31,7 @@ function mapAeroApiStatus(flight) {
   };
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'GET') return methodNotAllowed();
 
   const { carrier, number, date } = event.queryStringParameters || {};

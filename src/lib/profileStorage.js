@@ -1,32 +1,6 @@
-// src/lib/profileStorage.js
-//
-// Travel profile + visa persistence, backed by Supabase
-// (passenger_profiles + saved_visas tables) instead of localStorage.
-//
-// This REPLACES any earlier localStorage-only version of
-// profileStorage.js. The function names are kept the same
-// (loadUserProfile, saveProfile, deleteProfile, setActiveProfile)
-// so existing callers (Profile.jsx, EditProfileModal.jsx,
-// BottomNav.jsx) don't need to change their import statements —
-// only what happens inside these functions changes.
-//
-// "Active profile" is still tracked in localStorage (it's a pure UI
-// preference, not data that needs to survive across devices or be
-// queried), but the actual profile/visa records now live in Supabase.
-
-//added jsdoc expiry_date to fix supabase data error.
-
 import { supabase } from './supabaseClient';
-import { COUNTRIES } from '@/components/travel/PassportSelector';
 
 const ACTIVE_PROFILE_KEY = 'skyline_active_profile_id';
-
-/**
- * @param {string} code
- */
-function countryNameFor(code) {
-  return COUNTRIES.find((c) => c.code === code)?.name || code || '';
-}
 
 /**
  * @typedef {Object} SavedVisa
@@ -54,21 +28,64 @@ function countryNameFor(code) {
  * @property {SavedVisa[]} visas
  */
 
-function getCurrentUserId() {
-  // Supabase Auth populates this synchronously from the cached session
-  // after the initial auth check; AuthContext.jsx should already be
-  // awaiting getSession()/onAuthStateChange before rendering protected
-  // pages, so this is safe to call from profile screens.
-  return supabase.auth.getUser().then((res) => res.data?.user?.id || null);
+/**
+ * Robust helper to retrieve the authenticated user ID safely using async/await.
+ */
+async function getCurrentUserId() {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+      // Fallback check to cached session if user endpoint throttles
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.user?.id || null;
+    }
+    return user.id;
+  } catch (err) {
+    console.error("Error retrieving user session context:", err);
+    return null;
+  }
 }
 
 /**
- * Loads the signed-in user's profile, in the same shape the old
- * localStorage version returned, so existing components
- * (Profile.jsx, BottomNav.jsx) don't need to change how they read it:
- *   { travel_profiles: TravelProfile[], active_profile_id }
- *
- * @returns {Promise<{travel_profiles: TravelProfile[], active_profile_id: string|number|null}>}
+ * Creates a primary passenger profile when auth triggers did not run (e.g. SQL misconfiguration).
+ */
+export async function ensurePrimaryProfile(user) {
+  const userId = user?.id || (await getCurrentUserId());
+  if (!userId) return null;
+
+  const { data: existing, error: existingError } = await supabase
+    .from('passenger_profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1);
+
+  if (existingError) {
+    console.error('ensurePrimaryProfile: failed to check existing profiles:', existingError);
+    return null;
+  }
+  if (existing?.length) return existing[0];
+
+  const { data, error } = await supabase
+    .from('passenger_profiles')
+    .insert({
+      user_id: userId,
+      profile_name: 'Primary Profile',
+      full_name: user?.user_metadata?.full_name || 'Traveler',
+      passport_country: user?.user_metadata?.passport_country || '',
+      is_primary: true,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('ensurePrimaryProfile: failed to create primary profile:', error);
+    return null;
+  }
+  return data;
+}
+
+/**
+ * Loads the signed-in user's profile matching the app's standard schema layout.
  */
 export async function loadUserProfile() {
   const userId = await getCurrentUserId();
@@ -94,29 +111,23 @@ export async function loadUserProfile() {
     console.error('loadUserProfile: failed to load saved_visas:', visasError);
   }
 
-  // saved_visas isn't linked to a specific profile in the current
-  // schema (one user, one passport in this diploma version), so every
-  // visa the user owns is attached to every one of their profiles.
-  // If you later add multi-passport support, add a profile_id column
-  // to saved_visas and filter here instead.
   const travelProfiles = (profiles || []).map((p) => ({
     id: p.id,
-    profile_name: p.full_name ? `${p.full_name}'s Profile` : 'Travel Profile',
+    profile_name: p.profile_name || (p.full_name ? `${p.full_name}'s Profile` : 'Travel Profile'),
     full_name: p.full_name,
     nationality: p.nationality,
     passport_country: p.passport_country,
-    passport_country_name: countryNameFor(p.passport_country),
     passport_number: p.passport_number,
     passport_expiry_date: p.passport_expiry,
     date_of_birth: p.date_of_birth,
+    home_airport: p.home_airport, 
     is_primary: p.is_primary,
     visas: (visas || []).map((v) => ({
       country_code: v.country,
-      country_name: countryNameFor(v.country),
       visa_type: v.visa_type,
       valid_from: v.valid_from,
       valid_until: v.valid_until,
-      expiry_date: v.valid_until, // alias used elsewhere in the app (VisaAlerts.jsx)
+      expiry_date: v.valid_until, 
       entries_allowed: v.entries_allowed,
     })),
   }));
@@ -130,27 +141,23 @@ export async function loadUserProfile() {
 }
 
 /**
- * Creates or updates a passenger profile, and replaces that profile's
- * visa set. Called from EditProfileModal.jsx's Save button.
- *
- * @param {TravelProfile} profile
- * @returns {Promise<TravelProfile>} the saved profile, with its real DB id
+ * Creates or updates a passenger profile, and safely normalizes empty date types.
  */
 export async function saveProfile(profile) {
   const userId = await getCurrentUserId();
   if (!userId) throw new Error('You must be signed in to save a travel profile.');
 
-  // Sanitize empty strings to null to avoid database constraint violations
   const profileRow = {
     user_id: userId,
-    profile_name: profile.profile_name || null,
+    profile_name: profile.profile_name || 'Travel Profile',
     full_name: profile.full_name || 'Traveler',
     nationality: profile.nationality || profile.passport_country_name || null,
-    passport_country: profile.passport_country || null, // Fixes empty string constraint bugs
+    passport_country: profile.passport_country || '',
     passport_number: profile.passport_number || null,
-    passport_expiry: profile.passport_expiry_date || null,
-    date_of_birth: profile.date_of_birth || null,
-    home_airport: profile.home_airport || null, // Ensure home airport matches schema
+    // Safely map empty input string values to real SQL NULL values
+    passport_expiry: profile.passport_expiry_date === "" ? null : (profile.passport_expiry_date || null),
+    date_of_birth: profile.date_of_birth === "" ? null : (profile.date_of_birth || null),
+    home_airport: profile.home_airport || null
   };
 
   let savedProfile;
@@ -161,7 +168,7 @@ export async function saveProfile(profile) {
       .from('passenger_profiles')
       .update(profileRow)
       .eq('id', profile.id)
-      .eq('user_id', userId)
+      .eq('user_id', userId) 
       .select()
       .single();
     if (error) throw error;
@@ -176,7 +183,6 @@ export async function saveProfile(profile) {
     savedProfile = data;
   }
 
-  // Replace this user's visa set
   if (Array.isArray(profile.visas)) {
     const { error: deleteError } = await supabase
       .from('saved_visas')
@@ -186,7 +192,7 @@ export async function saveProfile(profile) {
 
     if (profile.visas.length > 0) {
       const visaRows = profile.visas
-        .filter(v => v.country_code) // Prevent inserting empty codes
+        .filter(v => v.country_code)
         .map((v) => ({
           user_id: userId,
           country: v.country_code,
@@ -195,11 +201,8 @@ export async function saveProfile(profile) {
           valid_until: v.valid_until || v.expiry_date || new Date().toISOString().slice(0, 10),
           entries_allowed: v.entries_allowed || 'multiple',
         }));
-
-      if (visaRows.length > 0) {
-        const { error: insertError } = await supabase.from('saved_visas').insert(visaRows);
-        if (insertError) throw insertError;
-      }
+      const { error: insertError } = await supabase.from('saved_visas').insert(visaRows);
+      if (insertError) throw insertError;
     }
   }
 
@@ -207,9 +210,7 @@ export async function saveProfile(profile) {
 }
 
 /**
- * 
- *
- * @param {string|number} profileId
+ * Deletes a passenger profile from the database.
  */
 export async function deleteProfile(profileId) {
   const userId = await getCurrentUserId();
@@ -229,15 +230,9 @@ export async function deleteProfile(profileId) {
 }
 
 /**
- * Marks a profile as the active one. Purely a local UI preference —
- * not written to Supabase, since "which profile is selected right
- * now in this browser" isn't data that needs to sync across devices.
- *
- * @param {string|number} profileId
+ * Marks a profile ID as active in local presentation storage.
  */
 export function setActiveProfile(profileId) {
   localStorage.setItem(ACTIVE_PROFILE_KEY, String(profileId));
-  // Let BottomNav.jsx and other listeners react immediately, mirroring
-  // the existing 'storage' event pattern already used elsewhere.
   window.dispatchEvent(new Event('storage'));
 }

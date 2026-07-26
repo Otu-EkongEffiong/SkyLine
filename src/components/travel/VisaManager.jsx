@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -181,9 +182,12 @@ export default function VisaManager({ visas = [], onVisasChange, passportCountry
               Add Visa
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Add a Visa</DialogTitle>
+              <DialogDescription className="sr-only">
+                Add visa details for a country you can travel to with your passport.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">

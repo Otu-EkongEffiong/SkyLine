@@ -94,7 +94,7 @@ function flattenDuffelOffer(offer) {
   };
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'POST') return methodNotAllowed();
 
   const { origin, destination, departureDate, returnDate, travelerProfile } = parseBody(event);
