@@ -13,6 +13,7 @@ import { createPageUrl } from '@/utils';
 import BottomNav from '@/components/BottomNav';
 import { saveSearch } from '@/lib/searchStorage';
 import { loadUserProfile } from '@/lib/profileStorage';
+import iconSvg from '../assets/icon.svg';
 
 export default function Home() {
   const { t } = useTranslation();
@@ -67,7 +68,7 @@ export default function Home() {
 
         <div className="relative max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between mb-6">
-            <img src="/src/assets/icon.svg" alt="SkyLine" className="h-14 w-auto object-contain" />
+            <img src={iconSvg} alt="SkyLine" className="h-14 w-auto object-contain" />
             <Link to={createPageUrl('LiveMap')}>
               <Button variant="secondary" size="sm" className="gap-2 bg-white/20 border-white/30 text-white hover:bg-white/30">
                 <Map className="w-4 h-4" />

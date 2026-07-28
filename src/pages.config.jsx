@@ -29,6 +29,9 @@ const RouteDetails        = React.lazy(() => import('./pages/RouteDetails'));
 const Checkout          = React.lazy(() => import('./pages/Checkout'));
 const LiveMap             = React.lazy(() => import('./pages/LiveMap'));
 
+// airport admin
+const AdminVisaRules             = React.lazy(() => import('./pages/AdminVisaRules'));
+
 
 
 const PageFallback = () => (
@@ -66,6 +69,7 @@ export const PAGES = {
   RouteDetails:      withSuspense(RouteDetails),
   Checkout:          withSuspense(Checkout),
   LiveMap:           withSuspense(LiveMap),
+  AdminVisaRules:           withSuspense(AdminVisaRules),
 };
 
 export const pagesConfig = {

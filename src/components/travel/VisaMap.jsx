@@ -1,23 +1,22 @@
 // @ts-nocheck
-import React, { useEffect, useState, useRef, useLayoutEffect } from 'react';
+import React, { useEffect, useState, useRef, useLayoutEffect, useMemo } from 'react';
 import { getVisaStatus } from './Travelconstants';
-import { Maximize2, X, Plus, Minus } from 'lucide-react';
+import { Maximize2, X } from 'lucide-react';
 
-// Simplified 3-category color scheme matching VisaHQ style
 const STATUS_COLOR = {
-  home:            '#6366f1', // indigo for home country
-  visa_free:       '#22c55e', // green  – No Visa Required
-  has_visa:        '#22c55e', // green  – treated same as visa free (you have it)
-  evisa:           '#f59e0b', // amber  – E-Visa / on arrival
-  visa_on_arrival: '#f59e0b', // amber
-  visa_required:   '#ea580c', // orange-red – Paper Visa / Full visa required
-  unknown:         '#d1d5db', // light gray
+  home:            '#6366f1', // Indigo
+  visa_free:       '#22c55e', // Green
+  has_visa:        '#22c55e', // Green — Held active visa
+  evisa:           '#f59e0b', // Amber
+  visa_on_arrival: '#f59e0b', // Amber
+  visa_required:   '#ea580c', // Orange-Red
+  unknown:         '#d1d5db', // Light Gray
 };
 
 const STATUS_LABEL = {
   home:            'Your Country',
   visa_free:       'No Visa Required',
-  has_visa:        'No Visa Required',
+  has_visa:        'Visa Held',
   evisa:           'E-Visa / Visa on Arrival',
   visa_on_arrival: 'E-Visa / Visa on Arrival',
   visa_required:   'Paper Visa Required',
@@ -35,7 +34,7 @@ const STATUS_DOT = {
 };
 
 const LEGEND = [
-  { color: '#22c55e', label: 'No Visa Required' },
+  { color: '#22c55e', label: 'No Visa Required / Held' },
   { color: '#f59e0b', label: 'E-Visa / Visa on Arrival' },
   { color: '#ea580c', label: 'Paper Visa Required' },
 ];
@@ -62,27 +61,50 @@ function geomPath(g) {
 
 let geoCache = null;
 
-function useCountryPaths(passportCode, visas) {
-  const [paths, setPaths] = useState([]);
+function useCountryPaths(passportCode, visas = []) {
+  const [rawGeo, setRawGeo] = useState(geoCache);
+
   useEffect(() => {
+    if (geoCache) return;
     let cancelled = false;
-    const build = data => {
-      if (cancelled) return;
-      setPaths(data.features.map(f => {
-        const iso = (f.properties?.ISO_A2 || f.properties?.iso_a2 || '').toUpperCase();
-        const name = f.properties?.ADMIN || f.properties?.name || iso;
-        let status = 'unknown';
-        if (passportCode && iso) {
-          status = iso === passportCode.toUpperCase() ? 'home' : getVisaStatus(passportCode, iso, visas);
-        }
-        return { iso, name, status, color: STATUS_COLOR[status] ?? STATUS_COLOR.unknown, d: geomPath(f.geometry) };
-      }));
-    };
-    if (geoCache) { build(geoCache); return; }
     fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-      .then(r => r.json()).then(d => { if (!cancelled) { geoCache = d; build(d); } }).catch(() => {});
+      .then(r => r.json())
+      .then(d => {
+        if (!cancelled) {
+          geoCache = d;
+          setRawGeo(d);
+        }
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
-  }, [passportCode, JSON.stringify(visas)]);
+  }, []);
+
+  const paths = useMemo(() => {
+    if (!rawGeo?.features) return [];
+
+    return rawGeo.features.map(f => {
+      const iso = (f.properties?.ISO_A2 || f.properties?.iso_a2 || '').toUpperCase();
+      const name = f.properties?.ADMIN || f.properties?.name || iso;
+      let status = 'unknown';
+
+      if (passportCode && iso) {
+        if (iso === passportCode.toUpperCase()) {
+          status = 'home';
+        } else {
+          status = getVisaStatus(passportCode, iso, visas);
+        }
+      }
+
+      return {
+        iso,
+        name,
+        status,
+        color: STATUS_COLOR[status] ?? STATUS_COLOR.unknown,
+        d: geomPath(f.geometry)
+      };
+    });
+  }, [rawGeo, passportCode, visas]);
+
   return paths;
 }
 
@@ -107,8 +129,6 @@ function InteractiveMap({ paths, width, height }) {
     tx.current = nx; ty.current = ny; sc.current = s;
     redraw(n => n + 1);
   };
-
-  const reset = () => { tx.current = 0; ty.current = 0; sc.current = 1; redraw(n => n + 1); };
 
   const onWheel = e => {
     e.preventDefault();
@@ -151,8 +171,8 @@ function InteractiveMap({ paths, width, height }) {
         applyZoom(dist / lastPinch.current, ((a.clientX + b.clientX) / 2) - r.left, ((a.clientY + b.clientY) / 2) - r.top);
       }
       lastPinch.current = dist;
-      touchPts.current[a.identifier] = { x: a.clientX, y: a.clientY };
-      touchPts.current[b.identifier] = { x: b.clientX, y: b.clientY };
+      touchPts.current[a.identifier] = { x: a.identifier, y: a.clientY };
+      touchPts.current[b.identifier] = { x: b.identifier, y: b.clientY };
     }
   };
   const onTouchEnd = e => {
@@ -162,10 +182,6 @@ function InteractiveMap({ paths, width, height }) {
 
   const s = sc.current;
 
-  const handleCountryEnter = (e, c) => {
-    const r = e.currentTarget.closest('[data-maproot]').getBoundingClientRect();
-    setTooltip({ name: c.name, status: c.status, x: e.clientX - r.left, y: e.clientY - r.top });
-  };
   const handleCountryMove = (e, c) => {
     const r = e.currentTarget.closest('[data-maproot]').getBoundingClientRect();
     setTooltip({ name: c.name, status: c.status, x: e.clientX - r.left, y: e.clientY - r.top });
@@ -197,9 +213,7 @@ function InteractiveMap({ paths, width, height }) {
           pointerEvents: 'none',
         }}
       >
-        {/* Ocean background */}
         <rect x="0" y="0" width="1000" height="500" fill="#cce8f4" />
-
         {paths.map(c => (
           <path
             key={c.iso}
@@ -209,14 +223,13 @@ function InteractiveMap({ paths, width, height }) {
             strokeWidth={Math.max(0.2, 0.4 / s)}
             strokeLinejoin="round"
             style={{ pointerEvents: 'all', cursor: 'default' }}
-            onMouseEnter={e => handleCountryEnter(e, c)}
+            onMouseEnter={e => handleCountryMove(e, c)}
             onMouseMove={e => handleCountryMove(e, c)}
             onMouseLeave={() => setTooltip(null)}
           />
         ))}
       </svg>
 
-      {/* Zoom buttons — bottom-left like VisaHQ */}
       <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 20 }}>
         <button onClick={() => applyZoom(1.5, width / 2, height / 2)}
           style={{ width: 30, height: 30, minWidth: 30, background: 'white', border: '1px solid #ccc', borderRadius: '4px 4px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 18, fontWeight: 700, color: '#333', padding: 0 }}>
@@ -228,7 +241,6 @@ function InteractiveMap({ paths, width, height }) {
         </button>
       </div>
 
-      {/* Tooltip — dark card style like VisaHQ */}
       {tooltip && (
         <div style={{
           position: 'absolute', zIndex: 30, pointerEvents: 'none',
@@ -242,8 +254,8 @@ function InteractiveMap({ paths, width, height }) {
         }}>
           <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{tooltip.name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_DOT[tooltip.status], flexShrink: 0 }} />
-            <span style={{ color: '#d1d5db', fontSize: 12 }}>{STATUS_LABEL[tooltip.status]}</span>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_DOT[tooltip.status] || STATUS_DOT.unknown, flexShrink: 0 }} />
+            <span style={{ color: '#d1d5db', fontSize: 12 }}>{STATUS_LABEL[tooltip.status] || STATUS_LABEL.unknown}</span>
           </div>
         </div>
       )}
@@ -281,7 +293,6 @@ export default function VisaMap({ passportCode, visas = [], expandable = true })
 
   return (
     <>
-      {/* Inline map */}
       <div style={{ position: 'relative', width: '100%' }}>
         {paths.length === 0 ? (
           <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#cce8f4', borderRadius: 12 }}>
@@ -299,14 +310,9 @@ export default function VisaMap({ passportCode, visas = [], expandable = true })
         )}
       </div>
 
-
-
-      {/* Fullscreen modal */}
       {fullscreen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column' }}>
-          {/* Top bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'white', flexShrink: 0 }}>
-            {/* Legend in header */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
               {LEGEND.map(item => (
                 <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -320,8 +326,6 @@ export default function VisaMap({ passportCode, visas = [], expandable = true })
               <X size={16} color="#374151" />
             </button>
           </div>
-
-          {/* Map fills rest */}
           <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
             {paths.length > 0 && <SizedMap paths={paths} fullHeight />}
           </div>

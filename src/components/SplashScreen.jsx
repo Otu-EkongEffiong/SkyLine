@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import iconSvg from '../assets/icon.svg';
 
 
 export default function SplashScreen({ isExiting = false, onExitComplete = () => {} }) {
@@ -52,7 +53,7 @@ export default function SplashScreen({ isExiting = false, onExitComplete = () =>
     >
       <motion.div variants={logoVariants}>
         <img
-          src="/src/assets/icon.svg"
+          src={iconSvg}
           alt="SkyLine Logo"
           className="h-32 w-auto object-contain drop-shadow-xl"
         />

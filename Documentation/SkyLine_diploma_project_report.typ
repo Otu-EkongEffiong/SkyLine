@@ -139,7 +139,7 @@ Flight booking APIs and payment APIs require private keys. These keys must never
 The application needs reliable airport data for search and maps. The OurAirports dataset can be imported into Supabase with airport names, IATA codes, ICAO codes, city, country, latitude, and longitude. When a route is displayed, the app can draw the path from the origin airport to each layover and then to the destination. Each stop can show visa or transit warnings directly on the map or route card.
 
 == Data Privacy and Sensitive Traveler Information
-
+#image("privacy.jpg", width: 100%)
 The app stores sensitive profile information such as passport country, nationality, visas, and travel history. The implementation must minimize stored data and avoid saving unnecessary full passport details unless required. Supabase row-level security should be enabled so users can only access their own profiles, saved searches, and bookings. Payment details should not be stored directly in the application database; Stripe handles card data.
 
 == Handling Incomplete or Uncertain Travel Rules
@@ -150,16 +150,41 @@ Visa rules change frequently and can depend on many details. A diploma project c
 
 The final project documentation should include the following screenshots:
 
-- Home/search screen with origin, destination, dates, budget, nationality, passport country, and existing visa fields.
-- Traveler profile screen showing saved passport country, residence country, and visas.
+- Home/search screen with origin, destination, dates
+#image("home_page.jpg", width: 100%)
+
+
+- Traveler profile screen showing saved passport country, residence country, and visas
+#image("traveler_profile.jpg", width: 100%)
+#image("traveler_profile_card.jpg", width: 100%)
+
+
 - Route results screen showing recommended, warning, and avoid route cards.
-- Flight path map showing origin, layovers, destination, and transit visa warnings.
+#image("route_ticket_options.jpg", width: 100%)
+#image("route_ticket_options1.jpg", width: 100%)
+
+
+- Flight path map showing origin, layovers, destination.
+#image("route_details.jpg", width: 100%)
+
 - Booking/checkout screen using Stripe test mode and saving the booking to Supabase.
+#image("checkout.jpg", width: 100%)
+#image("checkout_card_entry.jpg", width: 100%)
+#image("trip_detail_confirmation.jpg", width: 100%)
+#image("trip_detail_confirmation_pdf.jpg", width: 100%)
+
+
 - Admin/rules screen for managing visa and transit rules in the diploma demo.
+#image("admin_visa_rules.jpg", width: 100%)
+
 
 = Conclusions and Development Prospects
 
-SkyLine addresses a practical problem that is not fully solved by ordinary flight search engines. Many travelers cannot choose flights based only on price because their passport strength, residence status, and visas affect which destinations and transit routes are possible. The project demonstrates how flight APIs, airport data, user profiles, and visa/transit rules can be combined into a recommendation system that provides safer and more useful travel planning.
+SkyLine addresses a practical problem that is not fully solved by ordinary flight search engines. 
+Many travelers cannot choose flights based only on price because their passport strength, residence 
+status, and visas affect which destinations and transit routes are possible. The project demonstrates 
+how flight APIs, airport data, user profiles, and visa/transit rules can be combined into a 
+recommendation system that provides safer and more useful travel planning.
 
 The first version can use a controlled visa rule dataset and API sandbox environments. Future development could include integration with IATA Timatic or Sherpa for professional travel documentation checks, wider booking inventory through Sabre or Travelport, automatic passport document scanning, multilingual support, mobile applications, route risk learning based on user feedback, and stronger admin tools for maintaining visa rules.
 

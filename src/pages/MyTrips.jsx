@@ -17,6 +17,7 @@ import { useTranslation } from '@/components/translations';
 import { format, parseISO, isAfter, isBefore } from 'date-fns';
 import { loadTrips } from '@/lib/tripStorage';
 import { loadUserProfile } from '@/lib/profileStorage';
+import iconSvg from '../assets/icon.svg';
 
 export default function MyTrips() {
   const { t } = useTranslation();
@@ -160,7 +161,7 @@ export default function MyTrips() {
             {/* Header */}
             <div className="flex items-center justify-center mb-4">
               <img
-                src="/src/assets/icon.svg"
+                src={iconSvg}
                 alt="SkyLine Logo"
                 className="h-16 w-auto object-contain"
               />

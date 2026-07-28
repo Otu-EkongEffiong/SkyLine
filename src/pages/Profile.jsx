@@ -18,6 +18,7 @@ import VisaAlerts from '@/components/travel/VisaAlerts';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import iconSvg from '../assets/icon.svg';
 
 // Supabase-backed persistence — NOT localStorage. Every one of these
 // is async and actually talks to passenger_profiles / saved_visas.
@@ -263,7 +264,7 @@ export default function Profile() {
         <div className="relative max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center justify-center mb-4">
             <img
-              src="/src/assets/icon.svg"
+              src={iconSvg}
               alt="SkyLine Logo"
               className="h-16 w-auto object-contain"
             />

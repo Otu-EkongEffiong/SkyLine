@@ -5,6 +5,7 @@ import { createPageUrl } from '@/utils';
 import { Shield, CheckCircle, ChevronDown } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { motion } from 'framer-motion';
+import iconSvg from '../assets/icon.svg';
 
 const Section = ({ number, title, children }) => (
   <div className="mb-6">
@@ -47,7 +48,7 @@ export default function AcceptTerms() {
       <div className="bg-gradient-to-br from-sky-400 via-sky-500 to-teal-500 px-4 py-6 flex-shrink-0">
         <div className="flex items-center justify-center mb-4">
           <img
-            src="/src/assets/icon.svg"
+            src={iconSvg}
             alt="SkyLine Logo"
             className="h-16 w-auto object-contain"
           />

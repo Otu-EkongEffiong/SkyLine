@@ -1,7 +1,10 @@
 // @ts-nocheck
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, Map, Shield, Plane } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Map, Shield, Plane, Loader2 } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +12,179 @@ import BottomNav from '@/components/BottomNav';
 import { createPageUrl } from '@/utils';
 import { loadSelectedRoute, loadSearch } from '@/lib/searchStorage';
 import { getFlagEmoji } from '@/components/travel/PassportSelector';
+import { searchAirports } from '@/components/api/flightClient';
+
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
+
+function makeStopIcon(color) {
+  return new L.DivIcon({
+    className: 'route-stop-marker',
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+}
+
+const ORIGIN_ICON = makeStopIcon('#10b981');      // Emerald — Departure
+const DESTINATION_ICON = makeStopIcon('#ef4444'); // Red — Final Arrival
+
+function visaMarkerColor(status) {
+  switch (status) {
+    case 'visa_free':
+    case 'has_visa':        return '#10b981'; // Emerald
+    case 'evisa':
+    case 'visa_on_arrival': return '#f59e0b'; // Amber
+    case 'visa_required':   return '#ef4444'; // Red
+    default:                return '#94a3b8'; // Slate — Unknown
+  }
+}
+
+function visaStatusLabel(status) {
+  switch (status) {
+    case 'visa_free':       return 'Visa free';
+    case 'has_visa':        return 'You hold a visa';
+    case 'evisa':           return 'e-Visa available';
+    case 'visa_on_arrival': return 'Visa on arrival';
+    case 'visa_required':   return 'Visa required';
+    default:                return 'Visa status unknown';
+  }
+}
+
+function useRouteCoordinates(orderedCodes) {
+  const [coords, setCoords] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const uniqueCodes = [...new Set(orderedCodes)];
+      const results = await Promise.all(
+        uniqueCodes.map(async (code) => {
+          try {
+            const matches = await searchAirports(code);
+            const exact = matches.find((a) => a.code === code) || matches[0];
+            return exact ? [code, { lat: exact.lat, lon: exact.lon }] : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      if (cancelled) return;
+      const map = Object.fromEntries(results.filter(Boolean));
+      setCoords(map);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [orderedCodes.join(',')]);
+
+  return { coords, loading };
+}
+
+function RouteMap({ route }) {
+  const visaStatusByCode = useMemo(() => {
+    const map = {};
+    (route.connections || []).forEach((conn) => {
+      if (conn.countryCode) map[conn.countryCode] = conn.visaStatus;
+      if (conn.city) map[conn.city] = conn.visaStatus;
+    });
+    return map;
+  }, [route]);
+
+  const orderedCodes = useMemo(() => {
+    if (!route?.segments?.length) return [];
+    const codes = [route.segments[0].origin];
+    route.segments.forEach((seg) => codes.push(seg.destination));
+    return codes;
+  }, [route]);
+
+  const { coords, loading } = useRouteCoordinates(orderedCodes);
+
+  const path = orderedCodes
+    .map((code) => (coords[code] ? { code, ...coords[code] } : null))
+    .filter(Boolean);
+
+  if (loading) {
+    return (
+      <div className="h-64 flex items-center justify-center bg-slate-50 dark:bg-slate-900 rounded-xl">
+        <Loader2 className="w-6 h-6 animate-spin text-sky-500" />
+      </div>
+    );
+  }
+
+  if (path.length < 2) {
+    return (
+      <div className="h-64 flex items-center justify-center bg-slate-50 dark:bg-slate-900 rounded-xl text-sm text-slate-400">
+        Route map unavailable for this itinerary.
+      </div>
+    );
+  }
+
+  const latLngs = path.map((p) => [p.lat, p.lon]);
+  const centerLat = latLngs.reduce((sum, p) => sum + p[0], 0) / latLngs.length;
+  const centerLon = latLngs.reduce((sum, p) => sum + p[1], 0) / latLngs.length;
+
+  return (
+    <div>
+      <div className="h-64 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800">
+        <MapContainer center={[centerLat, centerLon]} zoom={3} className="w-full h-full" scrollWheelZoom={false}>
+          <TileLayer
+            attribution='&copy; OpenStreetMap contributors &copy; CARTO'
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          />
+          <Polyline positions={latLngs} pathOptions={{ color: '#0ea5e9', weight: 3, dashArray: '6 6' }} />
+          {path.map((p, i) => {
+            const isFirst = i === 0;
+            const isLast = i === path.length - 1;
+            const layoverStatus = visaStatusByCode[p.code];
+            
+            const icon = isFirst
+              ? ORIGIN_ICON
+              : isLast
+              ? DESTINATION_ICON
+              : makeStopIcon(visaMarkerColor(layoverStatus));
+
+            return (
+              <Marker key={`${p.code}-${i}`} position={[p.lat, p.lon]} icon={icon}>
+                <Popup>
+                  <div className="p-0.5">
+                    <span className="font-semibold">{p.code}</span>
+                    {isFirst && ' · Departure'}
+                    {isLast && ' · Arrival'}
+                    {!isFirst && !isLast && ' · Layover'}
+                    
+                    {!isFirst && !isLast && (
+                      <div className="mt-1 text-xs font-medium" style={{ color: visaMarkerColor(layoverStatus) }}>
+                        {visaStatusLabel(layoverStatus)}
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+        </MapContainer>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 flex-wrap">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Visa-free / held
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> e-Visa / on arrival
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Visa required
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function RouteDetails() {
   const navigate = useNavigate();
@@ -48,6 +224,18 @@ export default function RouteDetails() {
             </Badge>
           )}
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Map className="w-4 h-4 text-sky-500" />
+              Flight Path
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RouteMap route={route} />
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -115,7 +303,7 @@ export default function RouteDetails() {
           <Link to={createPageUrl('LiveMap')} className="flex-1">
             <Button variant="outline" className="w-full gap-2">
               <Map className="w-4 h-4" />
-              Live flight map
+              Live global flight map
             </Button>
           </Link>
           <Button

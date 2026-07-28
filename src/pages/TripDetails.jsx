@@ -15,6 +15,7 @@ import { format, parseISO } from 'date-fns';
 import FlightStatusTracker from '@/components/travel/FlightStatusTracker';
 import BottomNav from '@/components/BottomNav';
 import { getTripById, saveTrip, loadTrips } from '@/lib/tripStorage';
+import jsPDF from 'jspdf';
 
 export default function TripDetails() {
   const navigate = useNavigate();
@@ -83,37 +84,62 @@ export default function TripDetails() {
   };
 
   const downloadItinerary = () => {
-    const content = `
-FLIGHT ITINERARY
-================
-
-Booking Reference: ${trip.booking_reference}
-Route: ${trip.origin.city} → ${trip.destination.city}
-Departure: ${format(parseISO(trip.departure_date), 'PPP p')}
-Arrival: ${format(parseISO(trip.arrival_date), 'PPP p')}
-
-FLIGHT SEGMENTS
----------------
-${trip.segments.map(seg => `
-${seg.airline} ${seg.flight_number}
-${seg.origin} → ${seg.destination}
-Departs: ${seg.departure_time}
-Arrives: ${seg.arrival_time}
-Duration: ${seg.duration}
-`).join('\n')}
-
-PASSENGERS
-----------
-${trip.passengers?.map(p => `${p.name} - Seat: ${p.seat || 'Not assigned'}`).join('\n') || 'No passengers listed'}
-`;
-
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `itinerary-${trip.booking_reference}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 48;
+    let y = margin;
+  
+    const addLine = (text, { size = 11, bold = false, gap = 16 } = {}) => {
+      doc.setFontSize(size);
+      doc.setFont(undefined, bold ? 'bold' : 'normal');
+      doc.text(text, margin, y);
+      y += gap;
+    };
+  
+    const addRule = () => {
+      doc.setDrawColor(200);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 14;
+    };
+  
+    // Header
+    addLine('Flight Itinerary', { size: 20, bold: true, gap: 28 });
+    addLine(`Booking Reference: ${trip.booking_reference}`, { bold: true });
+    addRule();
+  
+    // Route summary
+    addLine(`${trip.origin.city} (${trip.origin.code}) → ${trip.destination.city} (${trip.destination.code})`, { size: 13, bold: true, gap: 20 });
+    addLine(`Departure: ${format(parseISO(trip.departure_date), 'PPP p')}`);
+    addLine(`Arrival: ${format(parseISO(trip.arrival_date), 'PPP p')}`);
+    y += 8;
+    addRule();
+  
+    // Segments
+    addLine('Flight Segments', { size: 13, bold: true, gap: 20 });
+    trip.segments.forEach((seg) => {
+      addLine(`${seg.airline} ${seg.flight_number}`, { bold: true, gap: 15 });
+      addLine(`${seg.origin} → ${seg.destination}`, { gap: 14 });
+      addLine(`Departs: ${seg.departure_time}   Arrives: ${seg.arrival_time}   Duration: ${seg.duration}`, { size: 10, gap: 18 });
+    });
+    addRule();
+  
+    // Passengers
+    addLine('Passengers', { size: 13, bold: true, gap: 20 });
+    if (trip.passengers?.length) {
+      trip.passengers.forEach((p) => {
+        addLine(`${p.name}${p.seat ? ` — Seat ${p.seat}` : ''}`, { gap: 16 });
+      });
+    } else {
+      addLine('No passengers listed', { gap: 16 });
+    }
+  
+    // New page if content ran long (defensive — most itineraries fit on one page)
+    if (y > doc.internal.pageSize.getHeight() - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  
+    doc.save(`itinerary-${trip.booking_reference}.pdf`);
   };
 
   if (isLoading) {
